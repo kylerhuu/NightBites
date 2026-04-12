@@ -12,7 +12,7 @@ enum TruckPlan: String, CaseIterable, Identifiable {
         case .free:
             return "$0/mo"
         case .pro:
-            return "$39-$59/mo"
+            return "$19.99/mo"
         }
     }
 

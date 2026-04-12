@@ -42,10 +42,10 @@ struct TruckOnboardingView: View {
                             .font(.headline)
 
                         Text("Price: \(selectedPlan.monthlyPriceText)")
-                        Text(selectedPlan == .free ? "Included: map listing, menu, hours" : "Included: map listing, live GPS, order ahead, analytics, promotions")
-                        Text(selectedPlan == .free ? "Ordering: not included" : "Ordering: included")
+                        Text(selectedPlan == .free ? "Included: map listing, menu, and hours" : "Included: map listing, live GPS, order ahead, analytics, and promotions")
+                        Text(selectedPlan == .free ? "Ordering: included for MVP" : "Ordering: included")
                         if selectedPlan == .pro {
-                            Text("Transaction fee: 5-8% per order")
+                            Text("Customers pay a 6% service fee capped at $2.99 per order.")
                         }
                     }
                     .font(.subheadline)

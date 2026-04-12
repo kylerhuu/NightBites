@@ -15,6 +15,7 @@ struct OwnerPayoutSummary {
     let nextPayoutDateLabel: String
     let platformFees: Double
     let processingFees: Double
+    let subscriptionFees: Double
     let netEarnings: Double
 }
 
@@ -29,6 +30,7 @@ enum RemoteSyncPhase: Equatable {
 final class FoodTruckViewModel {
     private static let persistedOrdersKey = "nightbites.orders.v1"
     private static let persistedAutoAcceptKey = "nightbites.orders.autoAccept.v1"
+    private static let persistedPaymentSettingsKey = "nightbites.trucks.paymentSettings.v1"
     private let backendService: BackendService
     private var gpsUpdateTask: Task<Void, Never>?
     private var remoteSyncTask: Task<Void, Never>?
@@ -55,6 +57,9 @@ final class FoodTruckViewModel {
     var nextStopByTruckID: [UUID: String] = [:]
     var recurringScheduleByTruckID: [UUID: String] = [:]
     var autoAcceptByTruckID: [UUID: Bool] = [:]
+    var onlinePaymentsEnabledByTruckID: [UUID: Bool] = [:]
+    var applePayEnabledByTruckID: [UUID: Bool] = [:]
+    var payoutAccountStatusByTruckID: [UUID: OwnerPayoutAccountStatus] = [:]
 
     init(backendService: BackendService) {
         self.backendService = backendService
@@ -69,6 +74,7 @@ final class FoodTruckViewModel {
             loadPersistedOrders()
         }
         loadPersistedAutoAcceptSettings()
+        loadPersistedPaymentSettings()
         startGPSUpdates()
     }
 
@@ -193,6 +199,8 @@ final class FoodTruckViewModel {
     @discardableResult
     func placeOrder(
         paymentMethod: PaymentMethod,
+        paymentStatus: PaymentStatus? = nil,
+        paymentTransactionID: String? = nil,
         customerUserID: String?,
         customerName: String,
         customization: String?,
@@ -221,7 +229,9 @@ final class FoodTruckViewModel {
         }
         .sorted { $0.menuItem.name < $1.menuItem.name }
 
-        let computedTotal = items.reduce(0) { $0 + $1.subtotal }
+        let computedSubtotal = items.reduce(0) { $0 + $1.subtotal }
+        let computedServiceFee = serviceFee(for: computedSubtotal)
+        let computedChargedTotal = computedSubtotal + computedServiceFee
 
         let isAutoAcceptEnabled = autoAcceptByTruckID[truckID] ?? false
         let resolvedPickupDate: Date?
@@ -242,9 +252,13 @@ final class FoodTruckViewModel {
             truckName: truck.name,
             campusName: truck.campusName,
             items: items,
-            totalAmount: computedTotal,
+            subtotalAmount: computedSubtotal,
+            serviceFeeAmount: computedServiceFee,
+            chargedTotalAmount: computedChargedTotal,
             status: isAutoAcceptEnabled ? .accepted : .pending,
             paymentMethod: paymentMethod,
+            paymentStatus: paymentStatus,
+            paymentTransactionID: paymentTransactionID,
             pickupTiming: pickupTiming,
             orderDate: Date(),
             estimatedDelivery: resolvedPickupDate,
@@ -670,6 +684,65 @@ final class FoodTruckViewModel {
         autoAcceptByTruckID[truckID] ?? false
     }
 
+    func acceptsOnlinePayments(for truckID: UUID) -> Bool {
+        onlinePaymentsEnabledByTruckID[truckID] ?? false
+    }
+
+    func acceptsApplePay(for truckID: UUID) -> Bool {
+        applePayEnabledByTruckID[truckID] ?? false
+    }
+
+    func payoutAccountStatus(for truckID: UUID) -> OwnerPayoutAccountStatus {
+        payoutAccountStatusByTruckID[truckID] ?? .notStarted
+    }
+
+    func canAcceptDigitalPayments(for truckID: UUID) -> Bool {
+        AppReleaseConfig.enableDigitalPayments &&
+            acceptsOnlinePayments(for: truckID) &&
+            payoutAccountStatus(for: truckID) == .connected
+    }
+
+    func availablePaymentMethods(for truckID: UUID) -> [PaymentMethod] {
+        guard canAcceptDigitalPayments(for: truckID) else { return [.cash] }
+        var methods: [PaymentMethod] = []
+        if acceptsApplePay(for: truckID) {
+            methods.append(.applePay)
+        }
+        methods.append(.card)
+        methods.append(.cash)
+        return methods
+    }
+
+    func setAcceptsOnlinePayments(_ enabled: Bool, for truckID: UUID) {
+        onlinePaymentsEnabledByTruckID[truckID] = enabled
+        if !enabled {
+            applePayEnabledByTruckID[truckID] = false
+        }
+        persistPaymentSettings()
+    }
+
+    func setAcceptsApplePay(_ enabled: Bool, for truckID: UUID) {
+        applePayEnabledByTruckID[truckID] = enabled
+        if enabled {
+            onlinePaymentsEnabledByTruckID[truckID] = true
+        }
+        persistPaymentSettings()
+    }
+
+    func setPayoutAccountStatus(_ status: OwnerPayoutAccountStatus, for truckID: UUID) {
+        payoutAccountStatusByTruckID[truckID] = status
+        persistPaymentSettings()
+    }
+
+    func serviceFee(for subtotal: Double) -> Double {
+        guard subtotal > 0 else { return 0 }
+        return min(max(subtotal * 0.06, 0.50), 2.99)
+    }
+
+    func totalAtCheckout(for subtotal: Double) -> Double {
+        subtotal + serviceFee(for: subtotal)
+    }
+
     func setAutoAcceptEnabled(_ enabled: Bool, forOwner ownerUserID: String) {
         for truck in trucksOwned(by: ownerUserID) {
             setAutoAcceptEnabled(enabled, for: truck.id)
@@ -726,7 +799,7 @@ final class FoodTruckViewModel {
         let ordersByCustomer = Dictionary(grouping: ownerOrders, by: \.customerName)
         let repeatCustomers = ordersByCustomer.values.filter { $0.count > 1 }.count
         let repeatCustomerPercentage = ordersByCustomer.isEmpty ? 0 : (Double(repeatCustomers) / Double(ordersByCustomer.count)) * 100
-        let averageOrderValue = ownerOrders.isEmpty ? 0 : ownerOrders.reduce(0) { $0 + $1.totalAmount } / Double(ownerOrders.count)
+        let averageOrderValue = ownerOrders.isEmpty ? 0 : ownerOrders.reduce(0) { $0 + $1.chargedTotalAmount } / Double(ownerOrders.count)
 
         return OwnerAnalytics(
             busiestTimeLabel: busiestTimeLabel,
@@ -753,14 +826,15 @@ final class FoodTruckViewModel {
         let weeklyOrders = ownerOrders.filter { $0.orderDate >= weekAgo }
         let unsettledOrders = ownerOrders.filter { $0.status != .completed }
 
-        let todaysEarnings = todaysOrders.reduce(0) { $0 + $1.totalAmount }
-        let weeklyEarnings = weeklyOrders.reduce(0) { $0 + $1.totalAmount }
-        let pendingPayouts = unsettledOrders.reduce(0) { $0 + $1.totalAmount }
+        let todaysEarnings = todaysOrders.reduce(0) { $0 + $1.subtotalAmount }
+        let weeklyEarnings = weeklyOrders.reduce(0) { $0 + $1.subtotalAmount }
+        let pendingPayouts = unsettledOrders.reduce(0) { $0 + $1.subtotalAmount }
 
-        let gross = ownerOrders.reduce(0) { $0 + $1.totalAmount }
-        let platformFees = gross * 0.12
-        let processingFees = ownerOrders.reduce(0) { $0 + (0.029 * $1.totalAmount) + 0.30 }
-        let netEarnings = max(0, gross - platformFees - processingFees)
+        let gross = ownerOrders.reduce(0) { $0 + $1.subtotalAmount }
+        let platformFees = ownerOrders.reduce(0) { $0 + $1.serviceFeeAmount }
+        let processingFees = ownerOrders.reduce(0) { $0 + (0.029 * $1.chargedTotalAmount) + 0.30 }
+        let subscriptionFees = Double(trucksOwned(by: ownerUserID).filter { $0.plan == .pro }.count) * 19.99
+        let netEarnings = max(0, gross - processingFees)
 
         return OwnerPayoutSummary(
             todaysEarnings: todaysEarnings,
@@ -769,6 +843,7 @@ final class FoodTruckViewModel {
             nextPayoutDateLabel: Self.dateFormatter.string(from: nextPayoutDate(from: now)),
             platformFees: platformFees,
             processingFees: processingFees,
+            subscriptionFees: subscriptionFees,
             netEarnings: netEarnings
         )
     }
@@ -814,6 +889,44 @@ final class FoodTruckViewModel {
             rebuilt[uuid] = boolValue
         }
         autoAcceptByTruckID = rebuilt
+    }
+
+    private func persistPaymentSettings() {
+        let stored = StoredTruckPaymentSettings(
+            onlinePaymentsEnabledByTruckID: Dictionary(
+                uniqueKeysWithValues: onlinePaymentsEnabledByTruckID.map { ($0.key.uuidString, $0.value) }
+            ),
+            applePayEnabledByTruckID: Dictionary(
+                uniqueKeysWithValues: applePayEnabledByTruckID.map { ($0.key.uuidString, $0.value) }
+            ),
+            payoutAccountStatusByTruckID: Dictionary(
+                uniqueKeysWithValues: payoutAccountStatusByTruckID.map { ($0.key.uuidString, $0.value) }
+            )
+        )
+        guard let data = try? JSONEncoder().encode(stored) else { return }
+        UserDefaults.standard.set(data, forKey: Self.persistedPaymentSettingsKey)
+    }
+
+    private func loadPersistedPaymentSettings() {
+        guard
+            let data = UserDefaults.standard.data(forKey: Self.persistedPaymentSettingsKey),
+            let stored = try? JSONDecoder().decode(StoredTruckPaymentSettings.self, from: data)
+        else {
+            return
+        }
+
+        onlinePaymentsEnabledByTruckID = stored.onlinePaymentsEnabledByTruckID.reduce(into: [:]) { result, entry in
+            guard let uuid = UUID(uuidString: entry.key) else { return }
+            result[uuid] = entry.value
+        }
+        applePayEnabledByTruckID = stored.applePayEnabledByTruckID.reduce(into: [:]) { result, entry in
+            guard let uuid = UUID(uuidString: entry.key) else { return }
+            result[uuid] = entry.value
+        }
+        payoutAccountStatusByTruckID = stored.payoutAccountStatusByTruckID.reduce(into: [:]) { result, entry in
+            guard let uuid = UUID(uuidString: entry.key) else { return }
+            result[uuid] = entry.value
+        }
     }
 
     private func formatHour(_ hour: Int) -> String {
@@ -1001,9 +1114,13 @@ private struct StoredOrder: Codable {
     let truckName: String
     let campusName: String
     let items: [StoredOrderItem]
-    let totalAmount: Double
+    let subtotalAmount: Double?
+    let serviceFeeAmount: Double?
+    let chargedTotalAmount: Double?
     let status: OrderStatus
     let paymentMethod: PaymentMethod
+    let paymentStatus: PaymentStatus?
+    let paymentTransactionID: String?
     let pickupTiming: PickupTiming
     let orderDate: Date
     let estimatedDelivery: Date?
@@ -1017,9 +1134,13 @@ private struct StoredOrder: Codable {
         truckName = order.truckName
         campusName = order.campusName
         items = order.items.map(StoredOrderItem.init)
-        totalAmount = order.totalAmount
+        subtotalAmount = order.subtotalAmount
+        serviceFeeAmount = order.serviceFeeAmount
+        chargedTotalAmount = order.chargedTotalAmount
         status = order.status
         paymentMethod = order.paymentMethod
+        paymentStatus = order.paymentStatus
+        paymentTransactionID = order.paymentTransactionID
         pickupTiming = order.pickupTiming
         orderDate = order.orderDate
         estimatedDelivery = order.estimatedDelivery
@@ -1035,9 +1156,13 @@ private struct StoredOrder: Codable {
             truckName: truckName,
             campusName: campusName,
             items: items.map(\.orderItem),
-            totalAmount: totalAmount,
+            subtotalAmount: subtotalAmount ?? chargedTotalAmount ?? 0,
+            serviceFeeAmount: serviceFeeAmount ?? 0,
+            chargedTotalAmount: chargedTotalAmount ?? subtotalAmount ?? 0,
             status: status,
             paymentMethod: paymentMethod,
+            paymentStatus: paymentStatus,
+            paymentTransactionID: paymentTransactionID,
             pickupTiming: pickupTiming,
             orderDate: orderDate,
             estimatedDelivery: estimatedDelivery,
@@ -1045,6 +1170,20 @@ private struct StoredOrder: Codable {
             specialInstructions: specialInstructions
         )
     }
+}
+
+enum OwnerPayoutAccountStatus: String, CaseIterable, Identifiable, Codable {
+    case notStarted = "Not Connected"
+    case pending = "Setup Pending"
+    case connected = "Connected"
+
+    var id: String { rawValue }
+}
+
+private struct StoredTruckPaymentSettings: Codable {
+    let onlinePaymentsEnabledByTruckID: [String: Bool]
+    let applePayEnabledByTruckID: [String: Bool]
+    let payoutAccountStatusByTruckID: [String: OwnerPayoutAccountStatus]
 }
 
 private extension String {

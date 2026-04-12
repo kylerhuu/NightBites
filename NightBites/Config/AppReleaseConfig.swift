@@ -63,6 +63,9 @@ enum AppReleaseConfig {
             if stripePublishableKey == nil {
                 AppTelemetry.track(error: "release_config_missing_stripe_publishable_key")
             }
+            if stripeMerchantIdentifier == nil {
+                AppTelemetry.track(error: "release_config_missing_stripe_merchant_identifier")
+            }
             if paymentsAPIBaseURL == nil {
                 AppTelemetry.track(error: "release_config_missing_payments_api_base_url")
             }

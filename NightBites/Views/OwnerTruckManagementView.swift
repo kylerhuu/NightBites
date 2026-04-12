@@ -129,30 +129,31 @@ struct OwnerTruckManagementView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(truck.name)
                         .font(.title2.weight(.bold))
+                        .foregroundStyle(NightBitesTheme.label)
                     Text("\(truck.cuisineType) • \(truck.campusName)")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(NightBitesTheme.labelSecondary)
                 }
 
                 Spacer()
 
                 ZStack {
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.18))
+                        .fill(NightBitesTheme.ink.opacity(0.45))
                         .frame(width: 52, height: 52)
                     Image(systemName: "truck.box.fill")
                         .font(.title2)
-                        .foregroundColor(.white)
+                        .foregroundColor(NightBitesTheme.ember)
                 }
             }
 
             HStack(spacing: 8) {
-                NightBitesChip(text: truck.liveStatusLabel, tint: .white, foreground: NightBitesTheme.ink)
+                NightBitesChip(text: truck.liveStatusLabel, tint: NightBitesTheme.ember, foreground: NightBitesTheme.ember)
                 Text("\(viewModel.getOwnerMenuItems(for: truck.id).count) menu items")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.86))
+                    .foregroundStyle(NightBitesTheme.labelSecondary)
                 Text("Prep \(viewModel.prepMinutes(for: truck.id)) min")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.86))
+                    .foregroundStyle(NightBitesTheme.labelSecondary)
             }
 
             HStack(spacing: 10) {
@@ -169,7 +170,7 @@ struct OwnerTruckManagementView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .nightBitesHeroCard()
+        .nightBitesCard()
     }
 
     private func orderControlsSection(_ truck: FoodTruck) -> some View {
@@ -228,12 +229,50 @@ struct OwnerTruckManagementView: View {
                     .buttonStyle(.bordered)
                     .disabled(!truck.isOpen)
                 }
+
+                Divider().overlay(NightBitesTheme.border)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(
+                        "Accept online payments",
+                        isOn: Binding(
+                            get: { viewModel.acceptsOnlinePayments(for: truck.id) },
+                            set: { viewModel.setAcceptsOnlinePayments($0, for: truck.id) }
+                        )
+                    )
+
+                    Toggle(
+                        "Offer Apple Pay",
+                        isOn: Binding(
+                            get: { viewModel.acceptsApplePay(for: truck.id) },
+                            set: { viewModel.setAcceptsApplePay($0, for: truck.id) }
+                        )
+                    )
+                    .disabled(!viewModel.acceptsOnlinePayments(for: truck.id))
+
+                    Picker(
+                        "Payout setup",
+                        selection: Binding(
+                            get: { viewModel.payoutAccountStatus(for: truck.id) },
+                            set: { viewModel.setPayoutAccountStatus($0, for: truck.id) }
+                        )
+                    ) {
+                        ForEach(OwnerPayoutAccountStatus.allCases) { status in
+                            Text(status.rawValue).tag(status)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Text(paymentSetupMessage(for: truck))
+                        .font(.footnote)
+                        .foregroundStyle(NightBitesTheme.labelSecondary)
+                }
             }
             .padding(.top, 12)
         } label: {
             sectionLabel(
                 "Order Controls",
-                subtitle: "Open, pause, prep, and intake settings",
+                subtitle: "Open, pause, prep, intake, and payments",
                 systemImage: "switch.2",
                 accent: .orange
             )
@@ -483,6 +522,23 @@ struct OwnerTruckManagementView: View {
         guard let draft = menuCategoryDrafts[item.id] else { return false }
         let normalized = trimmed(draft)
         return !normalized.isEmpty && normalized != item.category
+    }
+
+    private func paymentSetupMessage(for truck: FoodTruck) -> String {
+        if !AppReleaseConfig.enableDigitalPayments {
+            return "Digital payments are disabled in this build. Keep cash on until Stripe and Apple Pay are configured."
+        }
+        switch viewModel.payoutAccountStatus(for: truck.id) {
+        case .notStarted:
+            return "Truck is not connected for payouts yet. Students will only see pay at pickup."
+        case .pending:
+            return "Payout onboarding is not finished yet. Online payments stay hidden until setup is complete."
+        case .connected:
+            if viewModel.acceptsOnlinePayments(for: truck.id) {
+                return "This truck can accept in-app card payments. Apple Pay appears only if you also enable it."
+            }
+            return "Payouts are connected. Turn on online payments when you are ready to accept card orders."
+        }
     }
 
     private func sectionLabel(_ title: String, subtitle: String, systemImage: String, accent: Color) -> some View {

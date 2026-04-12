@@ -33,6 +33,7 @@ struct NightBitesApp: App {
         let backendService: BackendService
         let authService: AuthService
         let paymentService: PaymentService
+        let paymentPresenter: PaymentCheckoutPresenter
         let allowsGuestStudentAccess: Bool
 
         if let supabaseConfig = SupabaseConfig.fromBundle() {
@@ -50,13 +51,14 @@ struct NightBitesApp: App {
         } else {
             paymentService = InMemoryPaymentService()
         }
+        paymentPresenter = StripePaymentCheckoutPresenter()
 
         _foodTruckViewModel = State(initialValue: FoodTruckViewModel(backendService: backendService))
         _authViewModel = State(initialValue: AuthViewModel(
             authService: authService,
             allowsGuestStudentAccess: allowsGuestStudentAccess
         ))
-        _paymentManager = State(initialValue: PaymentManager(service: paymentService))
+        _paymentManager = State(initialValue: PaymentManager(service: paymentService, presenter: paymentPresenter))
         _locationAccessManager = State(initialValue: LocationAccessManager())
     }
 

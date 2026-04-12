@@ -60,9 +60,14 @@ create table if not exists orders (
   truck_name text not null,
   campus_name text not null,
   customer_name text not null default 'Guest',
+  subtotal_amount double precision not null default 0,
+  service_fee_amount double precision not null default 0,
+  charged_total_amount double precision not null default 0,
   total_amount double precision not null,
   status text not null,
   payment_method text not null,
+  payment_status text not null default 'Pay on Pickup',
+  payment_transaction_id text,
   pickup_timing text not null default 'ASAP',
   order_date timestamptz not null,
   estimated_delivery timestamptz,
@@ -130,6 +135,26 @@ create trigger on_auth_user_created_profile
 after insert on auth.users
 for each row execute function public.handle_new_user_profile();
 ```
+
+## Order pricing migration
+
+The app now expects orders to store:
+
+- `subtotal_amount`
+- `service_fee_amount`
+- `charged_total_amount`
+- `payment_status`
+- `payment_transaction_id`
+
+If your `orders` table already exists, run:
+
+```sql
+\i supabase/migrations/20260224_add_order_payment_columns.sql
+```
+
+Or paste the contents of:
+
+- [20260224_add_order_payment_columns.sql](/Users/kylerhu/NightBites/supabase/migrations/20260224_add_order_payment_columns.sql)
 
 ## Recommended RLS policies for pilot launch
 

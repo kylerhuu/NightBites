@@ -145,11 +145,23 @@ struct CheckoutView: View {
                 Text("Digital payments are off in this build — pay at pickup.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
+            } else if !viewModel.acceptsOnlinePayments(for: resolvedTruck.id) {
+                Text("This truck only accepts pay at pickup right now.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else if viewModel.payoutAccountStatus(for: resolvedTruck.id) != .connected {
+                Text("Truck payout onboarding is not finished yet, so in-app payments stay hidden.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
             } else if selectedPaymentMethod == .card || selectedPaymentMethod == .applePay {
-                Text("Card / Apple Pay need production SDK + server verification.")
+                Text("Card and Apple Pay are scaffolded here, but still need Stripe SDK + backend intent confirmation.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
+
+            Text("Service fee: 6% per order, capped at $2.99.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
         .padding(16)
         .background(NightBitesTheme.card.opacity(0.92))
@@ -223,6 +235,28 @@ struct CheckoutView: View {
                         .foregroundStyle(NightBitesTheme.saffron)
                 }
                 .padding(.top, 6)
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Service fee")
+                            .font(.subheadline.weight(.semibold))
+                        Text("Supports NightBites operations and secure ordering")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Text(String(format: "$%.2f", serviceFee))
+                        .font(.subheadline.weight(.bold))
+                }
+
+                HStack {
+                    Text("Total")
+                        .font(.headline.weight(.bold))
+                    Spacer()
+                    Text(String(format: "$%.2f", checkoutTotal))
+                        .font(.title3.weight(.heavy))
+                        .foregroundStyle(NightBitesTheme.label)
+                }
             }
         }
         .padding(16)
@@ -266,17 +300,29 @@ struct CheckoutView: View {
             Button {
                 Task {
                     paymentStatusMessage = nil
-                    let authorized = await paymentManager.authorizeIfNeeded(
+                    let orderReference = UUID().uuidString
+                    let checkoutSession = await paymentManager.prepareCheckout(
                         method: selectedPaymentMethod,
-                        amount: viewModel.activeCartSubtotal,
-                        orderReference: UUID().uuidString
+                        subtotalAmount: viewModel.activeCartSubtotal,
+                        serviceFeeAmount: serviceFee,
+                        amount: checkoutTotal,
+                        orderReference: orderReference,
+                        truckID: resolvedTruck.id
                     )
-                    guard authorized else {
-                        paymentStatusMessage = paymentManager.lastErrorMessage ?? "Payment authorization failed."
+                    guard checkoutSession != nil else {
+                        paymentStatusMessage = paymentManager.lastErrorMessage ?? "Could not start checkout."
+                        return
+                    }
+
+                    let confirmed = await paymentManager.confirmPreparedCheckout()
+                    guard confirmed else {
+                        paymentStatusMessage = paymentManager.lastErrorMessage ?? "Payment confirmation failed."
                         return
                     }
                     if let order = viewModel.placeOrder(
                         paymentMethod: selectedPaymentMethod,
+                        paymentStatus: selectedPaymentMethod == .cash ? .payOnPickup : .authorized,
+                        paymentTransactionID: paymentManager.lastTransactionID,
                         customerUserID: authViewModel.currentUser?.id,
                         customerName: resolvedCustomerName,
                         customization: customizationNotes,
@@ -307,7 +353,7 @@ struct CheckoutView: View {
             .nightBitesPrimaryGlow(radius: canPlaceOrder ? 16 : 0, y: canPlaceOrder ? 8 : 0)
 
             if paymentManager.isProcessing {
-                ProgressView("Authorizing…")
+                ProgressView(selectedPaymentMethod == .cash ? "Preparing order…" : "Preparing payment…")
                     .tint(NightBitesTheme.ember)
             }
 
@@ -360,7 +406,15 @@ struct CheckoutView: View {
     }
 
     private var availablePaymentMethods: [PaymentMethod] {
-        AppReleaseConfig.enableDigitalPayments ? PaymentMethod.allCases : [.cash]
+        viewModel.availablePaymentMethods(for: resolvedTruck.id)
+    }
+
+    private var serviceFee: Double {
+        viewModel.serviceFee(for: viewModel.activeCartSubtotal)
+    }
+
+    private var checkoutTotal: Double {
+        viewModel.totalAtCheckout(for: viewModel.activeCartSubtotal)
     }
 
     private var canPlaceOrder: Bool {
@@ -375,6 +429,9 @@ struct CheckoutView: View {
     private var checkoutDisabledMessage: String {
         if viewModel.cartLines.isEmpty {
             return "Add at least one item to continue."
+        }
+        if selectedPaymentMethod != .cash && !viewModel.canAcceptDigitalPayments(for: resolvedTruck.id) {
+            return "This truck is not set up for in-app payments yet."
         }
         if !resolvedTruck.supportsOrdering {
             return "This truck isn’t taking orders right now."

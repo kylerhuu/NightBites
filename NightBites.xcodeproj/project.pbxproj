@@ -281,7 +281,7 @@
 				INFOPLIST_KEY_ENABLE_GOOGLE_SIGN_IN = YES;
 				INFOPLIST_KEY_GOOGLE_OAUTH_REDIRECT_URL = "";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "NightBites uses your location to show nearby campus food trucks and map distance.";
-				INFOPLIST_KEY_PAYMENTS_API_BASE_URL = "";
+				INFOPLIST_KEY_PAYMENTS_API_BASE_URL = "http://127.0.0.1:3000";
 				INFOPLIST_KEY_PRIVACY_POLICY_URL = "https://nightbites.app/privacy";
 				INFOPLIST_KEY_SENTRY_DSN = "";
 				INFOPLIST_KEY_SMS_BACKUP_WEBHOOK_URL = "";
@@ -326,7 +326,7 @@
 				INFOPLIST_KEY_ENABLE_GOOGLE_SIGN_IN = YES;
 				INFOPLIST_KEY_GOOGLE_OAUTH_REDIRECT_URL = "";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "NightBites uses your location to show nearby campus food trucks and map distance.";
-				INFOPLIST_KEY_PAYMENTS_API_BASE_URL = "";
+				INFOPLIST_KEY_PAYMENTS_API_BASE_URL = "http://127.0.0.1:3000";
 				INFOPLIST_KEY_PRIVACY_POLICY_URL = "https://nightbites.app/privacy";
 				INFOPLIST_KEY_SENTRY_DSN = "";
 				INFOPLIST_KEY_SMS_BACKUP_WEBHOOK_URL = "";

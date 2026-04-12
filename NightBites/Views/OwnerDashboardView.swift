@@ -8,13 +8,14 @@ struct OwnerDashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Payouts & Analytics")
-                        .font(.largeTitle.weight(.bold))
+                    Text("Dashboard")
+                        .font(.title.weight(.bold))
+                        .foregroundStyle(NightBitesTheme.label)
                     Text("Business health lives here so orders and truck setup can stay operational.")
                         .font(.subheadline)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(NightBitesTheme.labelSecondary)
                 }
-                .nightBitesHeroCard()
+                .nightBitesCard()
 
                 let payouts = payoutSummary
                 let analytics = ownerAnalytics
@@ -36,9 +37,13 @@ struct OwnerDashboardView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Next payout: \(payouts.nextPayoutDateLabel)")
                             .font(.subheadline)
-                        Text("Fees: Platform \(currency(payouts.platformFees)) + Processing \(currency(payouts.processingFees))")
+                            .foregroundStyle(NightBitesTheme.label)
+                        Text("Fees: Service fees \(currency(payouts.platformFees)) + Processing \(currency(payouts.processingFees))")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(NightBitesTheme.labelSecondary)
+                        Text("Subscription revenue: \(currency(payouts.subscriptionFees))")
+                            .font(.caption)
+                            .foregroundStyle(NightBitesTheme.labelSecondary)
                     }
                     .nightBitesCard()
                 }
@@ -57,14 +62,15 @@ struct OwnerDashboardView: View {
 
                     if analytics.topItems.isEmpty {
                         Text("No order history yet.")
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(NightBitesTheme.labelSecondary)
                     } else {
                         ForEach(Array(analytics.topItems.enumerated()), id: \.offset) { entry in
                             HStack {
                                 Text(entry.element.name)
+                                    .foregroundStyle(NightBitesTheme.label)
                                 Spacer()
                                 Text("x\(entry.element.quantity)")
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(NightBitesTheme.labelSecondary)
                             }
                             Divider()
                         }
@@ -100,6 +106,7 @@ struct OwnerDashboardView: View {
                 nextPayoutDateLabel: "-",
                 platformFees: 0,
                 processingFees: 0,
+                subscriptionFees: 0,
                 netEarnings: 0
             )
         }

@@ -9,3 +9,6 @@ xcuserdata/
 
 # macOS
 .DS_Store
+node_modules/
+backend/.env
+backend/node_modules/

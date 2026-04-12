@@ -691,7 +691,9 @@ final class InMemoryBackendService: BackendService {
                 truckName: "Midnight Tacos",
                 campusName: "UCLA",
                 items: [OrderItem(menuItem: menuItems[0], quantity: 1)],
-                totalAmount: menuItems[0].price,
+                subtotalAmount: menuItems[0].price,
+                serviceFeeAmount: 0,
+                chargedTotalAmount: menuItems[0].price,
                 status: .ready,
                 paymentMethod: .applePay,
                 orderDate: Date().addingTimeInterval(-2_500),
@@ -836,7 +838,9 @@ final class SupabaseBackendService: BackendService {
                     truckName: row.truck_name,
                     campusName: row.campus_name,
                     items: orderItems,
-                    totalAmount: row.total_amount,
+                    subtotalAmount: row.subtotal_amount ?? row.total_amount,
+                    serviceFeeAmount: row.service_fee_amount ?? 0,
+                    chargedTotalAmount: row.charged_total_amount ?? row.total_amount,
                     status: status,
                     paymentMethod: paymentMethod,
                     pickupTiming: pickupTiming,
@@ -899,6 +903,9 @@ final class SupabaseBackendService: BackendService {
             let truck_name: String
             let campus_name: String
             let customer_name: String
+            let subtotal_amount: Double
+            let service_fee_amount: Double
+            let charged_total_amount: Double
             let total_amount: Double
             let status: String
             let payment_method: String
@@ -916,7 +923,10 @@ final class SupabaseBackendService: BackendService {
             truck_name: order.truckName,
             campus_name: order.campusName,
             customer_name: order.customerName,
-            total_amount: order.totalAmount,
+            subtotal_amount: order.subtotalAmount,
+            service_fee_amount: order.serviceFeeAmount,
+            charged_total_amount: order.chargedTotalAmount,
+            total_amount: order.chargedTotalAmount,
             status: order.status.rawValue,
             payment_method: order.paymentMethod.rawValue,
             pickup_timing: order.pickupTiming.rawValue,
@@ -1341,6 +1351,9 @@ private struct OrderRow: Decodable {
     let truck_name: String
     let campus_name: String
     let customer_name: String?
+    let subtotal_amount: Double?
+    let service_fee_amount: Double?
+    let charged_total_amount: Double?
     let total_amount: Double
     let status: String
     let payment_method: String

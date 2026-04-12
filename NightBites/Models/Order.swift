@@ -13,6 +13,14 @@ enum PickupTiming: String, CaseIterable, Codable {
     case scheduled = "Scheduled"
 }
 
+enum PaymentStatus: String, CaseIterable, Codable {
+    case payOnPickup = "Pay on Pickup"
+    case authorized = "Authorized"
+    case paid = "Paid"
+    case failed = "Failed"
+    case refunded = "Refunded"
+}
+
 struct Order: Identifiable, Hashable {
     let id: UUID
     let truckID: UUID?
@@ -20,9 +28,13 @@ struct Order: Identifiable, Hashable {
     let truckName: String
     let campusName: String
     let items: [OrderItem]
-    let totalAmount: Double
+    let subtotalAmount: Double
+    let serviceFeeAmount: Double
+    let chargedTotalAmount: Double
     var status: OrderStatus
     let paymentMethod: PaymentMethod
+    let paymentStatus: PaymentStatus
+    let paymentTransactionID: String?
     let pickupTiming: PickupTiming
     let orderDate: Date
     let estimatedDelivery: Date?
@@ -36,9 +48,13 @@ struct Order: Identifiable, Hashable {
         truckName: String,
         campusName: String,
         items: [OrderItem],
-        totalAmount: Double,
+        subtotalAmount: Double,
+        serviceFeeAmount: Double = 0,
+        chargedTotalAmount: Double? = nil,
         status: OrderStatus,
         paymentMethod: PaymentMethod,
+        paymentStatus: PaymentStatus? = nil,
+        paymentTransactionID: String? = nil,
         pickupTiming: PickupTiming = .asap,
         orderDate: Date,
         estimatedDelivery: Date?,
@@ -51,9 +67,13 @@ struct Order: Identifiable, Hashable {
         self.truckName = truckName
         self.campusName = campusName
         self.items = items
-        self.totalAmount = totalAmount
+        self.subtotalAmount = subtotalAmount
+        self.serviceFeeAmount = serviceFeeAmount
+        self.chargedTotalAmount = chargedTotalAmount ?? (subtotalAmount + serviceFeeAmount)
         self.status = status
         self.paymentMethod = paymentMethod
+        self.paymentStatus = paymentStatus ?? (paymentMethod == .cash ? .payOnPickup : .authorized)
+        self.paymentTransactionID = paymentTransactionID
         self.pickupTiming = pickupTiming
         self.orderDate = orderDate
         self.estimatedDelivery = estimatedDelivery
@@ -62,7 +82,15 @@ struct Order: Identifiable, Hashable {
     }
 
     var formattedTotal: String {
-        String(format: "$%.2f", totalAmount)
+        String(format: "$%.2f", chargedTotalAmount)
+    }
+
+    var formattedSubtotal: String {
+        String(format: "$%.2f", subtotalAmount)
+    }
+
+    var formattedServiceFee: String {
+        String(format: "$%.2f", serviceFeeAmount)
     }
 
     var formattedDate: String {

@@ -23,6 +23,7 @@ struct OwnerRootView: View {
                 }
         }
         .tint(NightBitesTheme.ember)
+        .preferredColorScheme(.dark)
     }
 
     private var ownerID: String? {

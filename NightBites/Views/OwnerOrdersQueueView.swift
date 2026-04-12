@@ -43,14 +43,7 @@ struct OwnerOrdersQueueView: View {
                 }
                 .padding()
             }
-            .background(
-                LinearGradient(
-                    colors: [Color.orange.opacity(0.12), Color.yellow.opacity(0.05), Color(.systemBackground)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
-            )
+            .nightBitesScreenBackground()
             .navigationTitle("Orders")
             .overlay(alignment: .top) {
                 if showAlertBanner, let order = latestAlertOrder {
@@ -102,41 +95,33 @@ struct OwnerOrdersQueueView: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(truck.name)
                         .font(.title2.weight(.bold))
+                        .foregroundStyle(NightBitesTheme.label)
                     Text("Orders stay here. Truck setup and menu live in My Truck.")
                         .font(.subheadline)
-                        .foregroundColor(.white.opacity(0.85))
+                        .foregroundStyle(NightBitesTheme.labelSecondary)
                 }
 
                 Spacer()
 
                 ZStack {
                     RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white.opacity(0.18))
+                        .fill(NightBitesTheme.ink.opacity(0.45))
                         .frame(width: 52, height: 52)
                     Image(systemName: "list.bullet.clipboard.fill")
                         .font(.title2)
-                        .foregroundColor(.white)
+                        .foregroundColor(NightBitesTheme.saffron)
                 }
             }
 
             HStack(spacing: 8) {
-                statusChip(truck.liveStatusLabel, tint: .white)
+                statusChip(truck.liveStatusLabel, tint: NightBitesTheme.ember)
                 Text("\(queueOrders.count) active")
                     .font(.caption.weight(.semibold))
-                    .foregroundColor(.white.opacity(0.9))
+                    .foregroundStyle(NightBitesTheme.labelSecondary)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(16)
-        .background(
-            LinearGradient(
-                colors: [Color.orange.opacity(0.92), Color(red: 0.85, green: 0.36, blue: 0.14)],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 16))
-        .shadow(color: Color.orange.opacity(0.22), radius: 16, y: 8)
+        .nightBitesCard()
     }
 
     private var queueOverview: some View {
@@ -151,7 +136,7 @@ struct OwnerOrdersQueueView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(NightBitesTheme.labelSecondary)
             Text("\(value)")
                 .font(.title3.bold())
                 .foregroundColor(tint)
@@ -160,15 +145,15 @@ struct OwnerOrdersQueueView: View {
         .padding(12)
         .background(
             LinearGradient(
-                colors: [Color(.systemBackground), tint.opacity(0.08)],
+                colors: [NightBitesTheme.card, tint.opacity(0.12)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
         )
-        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .stroke(tint.opacity(0.15), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(tint.opacity(0.22), lineWidth: 1)
         )
     }
 
@@ -185,15 +170,15 @@ struct OwnerOrdersQueueView: View {
                         HStack(spacing: 8) {
                             Text(order.customerName)
                                 .font(.headline)
-                                .foregroundColor(.primary)
+                                .foregroundStyle(NightBitesTheme.label)
                             priorityDot(for: order)
                         }
                         Text("Pickup \(order.formattedPickupTime)")
                             .font(.subheadline.weight(.semibold))
-                            .foregroundColor(.primary)
+                            .foregroundStyle(NightBitesTheme.label)
                         Text("Ordered \(order.formattedDate)")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(NightBitesTheme.labelSecondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
@@ -204,7 +189,7 @@ struct OwnerOrdersQueueView: View {
                     quickAction(for: order)
                     Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
                         .font(.title3)
-                        .foregroundColor(.secondary.opacity(0.75))
+                        .foregroundStyle(NightBitesTheme.labelSecondary.opacity(0.75))
                 }
             }
 
@@ -219,12 +204,13 @@ struct OwnerOrdersQueueView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(order.items) { item in
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("x\(item.quantity) \(item.menuItem.name)")
-                                    .font(.subheadline)
+                                    Text("x\(item.quantity) \(item.menuItem.name)")
+                                        .font(.subheadline)
+                                        .foregroundStyle(NightBitesTheme.label)
                                 if let customization = item.customization, !customization.isEmpty {
                                     Text(customization)
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundStyle(NightBitesTheme.labelSecondary)
                                 }
                             }
                         }
@@ -233,7 +219,7 @@ struct OwnerOrdersQueueView: View {
                     if let instructions = order.specialInstructions, !instructions.isEmpty {
                         Text("Notes: \(instructions)")
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundStyle(NightBitesTheme.labelSecondary)
                     }
 
                     HStack(spacing: 8) {
@@ -255,7 +241,7 @@ struct OwnerOrdersQueueView: View {
         .padding(14)
         .background(
             LinearGradient(
-                colors: [Color(.systemBackground), tint],
+                colors: [NightBitesTheme.card, NightBitesTheme.mutedCard.opacity(0.9), tint],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -270,14 +256,13 @@ struct OwnerOrdersQueueView: View {
 
     private func quickAction(for order: Order) -> some View {
         Group {
-            switch order.status {
-            case .accepted, .preparing:
-                Button("Ready") {
-                    viewModel.transitionOrder(order.id, to: .ready)
+            if let next = detailAction(for: order) {
+                Button(next.title) {
+                    viewModel.transitionOrder(order.id, to: next.status)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.green)
-            default:
+                .tint(next.tint)
+            } else {
                 statusChip(shortStatusLabel(for: order.status), tint: statusColor(for: order.status))
             }
         }
@@ -358,7 +343,7 @@ struct OwnerOrdersQueueView: View {
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(tint == .white ? Color.white.opacity(0.18) : tint.opacity(0.15))
+            .background(tint.opacity(0.15))
             .foregroundColor(tint)
             .clipShape(Capsule())
     }
