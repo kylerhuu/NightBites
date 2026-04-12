@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<true/>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>NightBites uses your location to show nearby campus food trucks and map distance.</string>
+	<key>SUPABASE_URL</key>
+	<string>https://vlzuqvpiuqonfilvskue.supabase.co</string>
+	<key>SUPABASE_ANON_KEY</key>
+	<string>sb_publishable_YlkJnMV4U-8I-smf5CoGgw_56B5YdyS</string>
+	<key>SUPPORT_EMAIL</key>
+	<string>kylerhu1549@gmail.com</string>
+	<key>PRIVACY_POLICY_URL</key>
+	<string>https://nightbites.app/privacy</string>
+	<key>TERMS_URL</key>
+	<string>https://nightbites.app/terms</string>
+	<key>ENABLE_FIREBASE_ANALYTICS</key>
+	<true/>
+	<key>ENABLE_GOOGLE_SIGN_IN</key>
+	<false/>
+	<key>GOOGLE_OAUTH_REDIRECT_URL</key>
+	<string></string>
+	<key>ENABLE_DIGITAL_PAYMENTS</key>
+	<false/>
+	<key>PAYMENTS_API_BASE_URL</key>
+	<string></string>
+	<key>SENTRY_DSN</key>
+	<string></string>
+	<key>SMS_BACKUP_WEBHOOK_URL</key>
+	<string></string>
+	<key>STRIPE_MERCHANT_IDENTIFIER</key>
+	<string></string>
+	<key>STRIPE_PUBLISHABLE_KEY</key>
+	<string></string>
+</dict>
+</plist>
