@@ -10,14 +10,19 @@ struct FoodTruckDetailView: View {
     @State private var orderToTrack: Order?
     @State private var reorderUnavailable = false
     @State private var showReviewsSheet = false
+    @State private var showCheckout = false
     @State private var reviewRating = 5
     @State private var reviewText = ""
     @State private var reviewMediaURL = ""
 
     let truck: FoodTruck
 
+    private var resolvedTruck: FoodTruck {
+        viewModel.foodTrucks.first(where: { $0.id == truck.id }) ?? truck
+    }
+
     private var menuItems: [MenuItem] {
-        viewModel.getStudentMenuItems(for: truck.id)
+        viewModel.getStudentMenuItems(for: resolvedTruck.id)
     }
 
     private var categories: [String] {
@@ -62,13 +67,13 @@ struct FoodTruckDetailView: View {
                         )
                     }
                 } else {
-                    if truck.studentCanPlaceOrders,
+                    if resolvedTruck.studentCanPlaceOrders,
                        let currentCustomerUserID,
-                       viewModel.lastOrder(for: truck.id, customerUserID: currentCustomerUserID) != nil {
+                       viewModel.lastOrder(for: resolvedTruck.id, customerUserID: currentCustomerUserID) != nil {
                         reorderButton(currentCustomerUserID)
                     }
 
-                    if !truck.studentCanPlaceOrders, truck.studentCanBrowseMenu {
+                    if !resolvedTruck.studentCanPlaceOrders, resolvedTruck.studentCanBrowseMenu {
                         orderingBlockedCallout
                     }
 
@@ -79,10 +84,10 @@ struct FoodTruckDetailView: View {
                             StudentMenuItemCard(
                                 item: item,
                                 inCartQuantity: viewModel.quantityInCart(for: item),
-                                canOrder: truck.studentCanPlaceOrders,
+                                canOrder: resolvedTruck.studentCanPlaceOrders,
                                 onTap: { detailMenuItem = item },
                                 onQuickAdd: {
-                                    guard truck.studentCanPlaceOrders, item.isAvailable else { return }
+                                    guard resolvedTruck.studentCanPlaceOrders, item.isAvailable else { return }
                                     if item.hasModifiers {
                                         detailMenuItem = item
                                     } else {
@@ -98,7 +103,7 @@ struct FoodTruckDetailView: View {
             .padding(.bottom, 110)
         }
         .nightBitesScreenBackground()
-        .navigationTitle(truck.name)
+        .navigationTitle(resolvedTruck.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -111,13 +116,13 @@ struct FoodTruckDetailView: View {
             }
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            if viewModel.cartTruckID == truck.id, viewModel.activeCartItemCount > 0 {
+            if viewModel.cartTruckID == resolvedTruck.id, viewModel.activeCartItemCount > 0 {
                 StudentStickyCartBar(
                     itemCount: viewModel.activeCartItemCount,
                     subtotal: viewModel.activeCartSubtotal,
-                    isActionable: truck.studentCanPlaceOrders
+                    isActionable: resolvedTruck.studentCanPlaceOrders
                 ) {
-                    viewModel.presentStudentCheckout(for: truck)
+                    showCheckout = true
                 }
                 .background(
                     LinearGradient(
@@ -132,7 +137,7 @@ struct FoodTruckDetailView: View {
         .sheet(item: $detailMenuItem) { item in
             MenuItemDetailSheet(
                 menuItem: item,
-                truckSupportsOrdering: truck.studentCanPlaceOrders,
+                truckSupportsOrdering: resolvedTruck.studentCanPlaceOrders,
                 onAdded: {}
             )
             .presentationDetents([.large])
@@ -141,6 +146,14 @@ struct FoodTruckDetailView: View {
         .sheet(isPresented: $showReviewsSheet) {
             reviewsSheet
                 .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showCheckout) {
+            NavigationStack {
+                CheckoutView(truck: resolvedTruck, viewModel: viewModel, onOrderPlaced: { order in
+                    showCheckout = false
+                    orderToTrack = order
+                })
+            }
         }
         .sheet(item: $orderToTrack) { order in
             NavigationStack {
@@ -161,7 +174,7 @@ struct FoodTruckDetailView: View {
             await viewModel.refreshStudentCatalog()
         }
         .onChange(of: viewModel.lastStudentOrderReadyForTracking) { _, new in
-            guard let new, new.truckID == truck.id else { return }
+            guard let new, new.truckID == resolvedTruck.id else { return }
             orderToTrack = new
             viewModel.lastStudentOrderReadyForTracking = nil
         }
@@ -169,7 +182,7 @@ struct FoodTruckDetailView: View {
 
     @ViewBuilder
     private var cover: some View {
-        if let urlString = truck.coverImageURL, let url = URL(string: urlString) {
+        if let urlString = resolvedTruck.coverImageURL, let url = URL(string: urlString) {
             AsyncImage(url: url) { phase in
                 switch phase {
                 case let .success(image):
@@ -228,8 +241,8 @@ struct FoodTruckDetailView: View {
 
     private func reorderButton(_ userID: String) -> some View {
         Button {
-            if viewModel.reorderLastOrder(for: truck.id, customerUserID: userID) {
-                viewModel.presentStudentCheckout(for: truck)
+            if viewModel.reorderLastOrder(for: resolvedTruck.id, customerUserID: userID) {
+                showCheckout = true
             } else {
                 reorderUnavailable = true
             }
@@ -263,10 +276,10 @@ struct FoodTruckDetailView: View {
         if !truck.canUseOrderAheadFeature {
             return "Ordering isn’t enabled for this truck yet."
         }
-        if !truck.isOpen {
-            return truck.closedEarly ? "This truck closed early tonight." : "This truck is closed right now."
+        if !resolvedTruck.isOpen {
+            return resolvedTruck.closedEarly ? "This truck closed early tonight." : "This truck is closed right now."
         }
-        if truck.ordersPaused {
+        if resolvedTruck.ordersPaused {
             return "New orders are paused — check back soon."
         }
         return "Ordering isn’t available right now."

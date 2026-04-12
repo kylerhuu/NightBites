@@ -39,6 +39,7 @@ struct StudentStickyCartBar: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .background {
                 Group {
                     if isActionable {
@@ -57,6 +58,7 @@ struct StudentStickyCartBar: View {
             .nightBitesPrimaryGlow(radius: isActionable ? 16 : 0, y: isActionable ? 8 : 0)
         }
         .buttonStyle(.plain)
+        .disabled(!isActionable)
         .opacity(isActionable ? 1 : 0.9)
         .padding(.horizontal, 12)
         .padding(.top, 6)
