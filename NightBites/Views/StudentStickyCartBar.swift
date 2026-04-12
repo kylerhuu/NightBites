@@ -3,6 +3,8 @@ import SwiftUI
 struct StudentStickyCartBar: View {
     let itemCount: Int
     let subtotal: Double
+    /// When false (e.g. truck paused), the bar still shows the bag but checkout tap is disabled.
+    var isActionable: Bool = true
     let action: () -> Void
 
     var body: some View {
@@ -19,33 +21,45 @@ struct StudentStickyCartBar: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Your order")
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(NightBitesTheme.label.opacity(0.85))
                     Text("\(itemCount) items")
                         .font(.headline.weight(.bold))
+                        .foregroundStyle(NightBitesTheme.label)
                 }
 
                 Spacer()
 
                 Text(String(format: "$%.2f", subtotal))
                     .font(.title3.weight(.heavy))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(NightBitesTheme.label)
 
                 Image(systemName: "chevron.right")
                     .font(.headline.weight(.semibold))
-                    .foregroundStyle(.white.opacity(0.85))
+                    .foregroundStyle(NightBitesTheme.label.opacity(0.85))
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
-            .background(
+            .background {
+                Group {
+                    if isActionable {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(NightBitesTheme.heroGradient)
+                    } else {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(NightBitesTheme.mutedCard)
+                    }
+                }
+            }
+            .overlay(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(NightBitesTheme.heroGradient)
+                    .stroke(NightBitesTheme.border, lineWidth: 1)
             )
-            .nightBitesPrimaryGlow(radius: 16, y: 8)
+            .nightBitesPrimaryGlow(radius: isActionable ? 16 : 0, y: isActionable ? 8 : 0)
         }
         .buttonStyle(.plain)
+        .opacity(isActionable ? 1 : 0.9)
         .padding(.horizontal, 12)
         .padding(.top, 6)
-        .padding(.bottom, 4)
-        .background(.ultraThinMaterial.opacity(0.001))
+        .padding(.bottom, 8)
     }
 }

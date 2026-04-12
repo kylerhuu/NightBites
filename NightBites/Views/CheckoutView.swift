@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct CheckoutView: View {
-    @Environment(FoodTruckViewModel.self) private var viewModel
+    @Bindable var viewModel: FoodTruckViewModel
     @Environment(AuthViewModel.self) private var authViewModel
     @Environment(PaymentManager.self) private var paymentManager
     @Environment(\.dismiss) private var dismiss
@@ -16,9 +16,14 @@ struct CheckoutView: View {
     @State private var scheduledPickupDate = Date().addingTimeInterval(30 * 60)
     @State private var paymentStatusMessage: String?
 
-    init(truck: FoodTruck, onOrderPlaced: ((Order) -> Void)? = nil) {
+    init(truck: FoodTruck, viewModel: FoodTruckViewModel, onOrderPlaced: ((Order) -> Void)? = nil) {
         self.truck = truck
+        self.viewModel = viewModel
         self.onOrderPlaced = onOrderPlaced
+    }
+
+    private var resolvedTruck: FoodTruck {
+        viewModel.foodTrucks.first(where: { $0.id == truck.id }) ?? truck
     }
 
     var body: some View {
@@ -27,7 +32,7 @@ struct CheckoutView: View {
                 Text("Checkout")
                     .font(.largeTitle.weight(.heavy))
 
-                CheckoutPickupMapSnippet(truck: truck)
+                CheckoutPickupMapSnippet(truck: resolvedTruck)
 
                 pickupSection
 
@@ -92,7 +97,7 @@ struct CheckoutView: View {
                         .stroke(NightBitesTheme.border, lineWidth: 1)
                 )
 
-            Text("Est. prep window: \(truck.formattedWait)")
+            Text("Est. prep window: \(resolvedTruck.formattedWait)")
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(.secondary)
         }
@@ -359,7 +364,7 @@ struct CheckoutView: View {
     }
 
     private var canPlaceOrder: Bool {
-        !viewModel.cartLines.isEmpty && canUseCurrentSessionForOrdering
+        !viewModel.cartLines.isEmpty && canUseCurrentSessionForOrdering && resolvedTruck.supportsOrdering
     }
 
     private var canUseCurrentSessionForOrdering: Bool {
@@ -370,6 +375,9 @@ struct CheckoutView: View {
     private var checkoutDisabledMessage: String {
         if viewModel.cartLines.isEmpty {
             return "Add at least one item to continue."
+        }
+        if !resolvedTruck.supportsOrdering {
+            return "This truck isn’t taking orders right now."
         }
         return "Sign in with a real account to place an order in this build."
     }
@@ -386,7 +394,7 @@ extension View {
         ) {
             if let id = viewModel.studentCheckoutTruckID,
                let truck = viewModel.foodTrucks.first(where: { $0.id == id }) {
-                CheckoutView(truck: truck, onOrderPlaced: { order in
+                CheckoutView(truck: truck, viewModel: viewModel, onOrderPlaced: { order in
                     viewModel.lastStudentOrderReadyForTracking = order
                     viewModel.studentCheckoutTruckID = nil
                 })

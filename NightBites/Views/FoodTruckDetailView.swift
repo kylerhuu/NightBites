@@ -1,7 +1,8 @@
 import SwiftUI
 
 struct FoodTruckDetailView: View {
-    @Environment(FoodTruckViewModel.self) private var viewModel
+    /// Passed from the parent `NavigationStack` so `@Observable` cart mutations reliably refresh the bag bar.
+    @Bindable var viewModel: FoodTruckViewModel
     @Environment(AuthViewModel.self) private var authViewModel
 
     @State private var selectedCategory: String?
@@ -109,13 +110,12 @@ struct FoodTruckDetailView: View {
                 .tint(NightBitesTheme.ember)
             }
         }
-        .safeAreaInset(edge: .bottom) {
-            if truck.studentCanPlaceOrders,
-               viewModel.cartTruckID == truck.id,
-               viewModel.activeCartItemCount > 0 {
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if viewModel.cartTruckID == truck.id, viewModel.activeCartItemCount > 0 {
                 StudentStickyCartBar(
                     itemCount: viewModel.activeCartItemCount,
-                    subtotal: viewModel.activeCartSubtotal
+                    subtotal: viewModel.activeCartSubtotal,
+                    isActionable: truck.studentCanPlaceOrders
                 ) {
                     viewModel.presentStudentCheckout(for: truck)
                 }

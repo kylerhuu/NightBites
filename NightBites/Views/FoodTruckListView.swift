@@ -28,7 +28,7 @@ struct FoodTruckListView: View {
                     LazyVStack(spacing: 10) {
                         ForEach(bindableViewModel.filteredFoodTrucks) { truck in
                             NavigationLink {
-                                FoodTruckDetailView(truck: truck)
+                                FoodTruckDetailView(viewModel: viewModel, truck: truck)
                             } label: {
                                 FoodTruckRowView(truck: truck)
                             }

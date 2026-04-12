@@ -57,7 +57,7 @@ struct CampusMapView: View {
             }
             .sheet(item: $selectedTruck) { truck in
                 NavigationStack {
-                    FoodTruckDetailView(truck: truck)
+                    FoodTruckDetailView(viewModel: viewModel, truck: truck)
                 }
                 .nightBitesStudentCheckoutDestination(viewModel: viewModel)
             }
