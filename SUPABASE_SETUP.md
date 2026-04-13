@@ -38,7 +38,8 @@ create table if not exists food_trucks (
   live_latitude double precision,
   live_longitude double precision,
   has_live_tracking boolean,
-  pro_subscription_active boolean
+  pro_subscription_active boolean,
+  closing_at timestamptz
 );
 
 create table if not exists menu_items (
@@ -50,7 +51,8 @@ create table if not exists menu_items (
   price double precision not null,
   category text not null,
   is_available boolean not null default true,
-  image_url text
+  image_url text,
+  tags text[] default '{}'::text[]
 );
 
 create table if not exists orders (
@@ -326,6 +328,9 @@ alter table orders add column if not exists customer_user_id text;
 update food_trucks
 set live_latitude = coalesce(live_latitude, latitude),
     live_longitude = coalesce(live_longitude, longitude);
+
+alter table food_trucks add column if not exists closing_at timestamptz;
+alter table menu_items add column if not exists tags text[] default '{}'::text[];
 ```
 
 ## Auth mode used
@@ -341,3 +346,12 @@ App signs in with Supabase Auth password flow:
 - `orders.items` stores the full order basket as JSON so student and owner devices can reconstruct orders without relying on local-only state.
 - `orders.truck_id` and `menu_items.truck_id` should be populated for every new write. `truck_name` remains only as display/legacy compatibility data.
 - If you enable the RLS policies above, guest checkout will no longer be able to create real orders because `orders` inserts require an authenticated user. For a pilot, prefer real sign-in over guest ordering.
+
+## Optional: `closing_at` and `tags`
+
+- `food_trucks.closing_at`: ISO8601 timestamp used for “Closing soon” in the student menu header (within roughly 45 minutes of that time while the truck is still open).
+- `menu_items.tags`: string array of short merchandising labels (for example `{"Best Seller"}`) shown on student menu cards.
+
+## Repo hygiene
+
+If `DerivedData` or other Xcode build artifacts were ever committed by mistake, remove them from git history with a tool such as [`git-filter-repo`](https://github.com/newren/git-filter-repo) and keep them ignored (this repo’s `.gitignore` already lists common paths).

@@ -7,10 +7,8 @@ struct FoodTruckDetailView: View {
 
     @State private var selectedCategory: String?
     @State private var detailMenuItem: MenuItem?
-    @State private var orderToTrack: Order?
     @State private var reorderUnavailable = false
     @State private var showReviewsSheet = false
-    @State private var showCheckout = false
     @State private var reviewRating = 5
     @State private var reviewText = ""
     @State private var reviewMediaURL = ""
@@ -43,7 +41,7 @@ struct FoodTruckDetailView: View {
             VStack(alignment: .leading, spacing: 18) {
                 cover
 
-                StudentTruckMenuHeader(truck: truck)
+                StudentTruckMenuHeader(truck: resolvedTruck)
 
                 syncBanner
 
@@ -122,7 +120,7 @@ struct FoodTruckDetailView: View {
                     subtotal: viewModel.activeCartSubtotal,
                     isActionable: resolvedTruck.studentCanPlaceOrders
                 ) {
-                    showCheckout = true
+                    viewModel.presentStudentCheckout(for: resolvedTruck)
                 }
                 .background(
                     LinearGradient(
@@ -147,24 +145,6 @@ struct FoodTruckDetailView: View {
             reviewsSheet
                 .presentationDetents([.large])
         }
-        .sheet(isPresented: $showCheckout) {
-            NavigationStack {
-                CheckoutView(truck: resolvedTruck, viewModel: viewModel, onOrderPlaced: { order in
-                    showCheckout = false
-                    orderToTrack = order
-                })
-            }
-        }
-        .sheet(item: $orderToTrack) { order in
-            NavigationStack {
-                OrderTrackingView(orderID: order.id)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { orderToTrack = nil }
-                        }
-                    }
-            }
-        }
         .alert("Couldn’t Reorder", isPresented: $reorderUnavailable) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -172,11 +152,6 @@ struct FoodTruckDetailView: View {
         }
         .refreshable {
             await viewModel.refreshStudentCatalog()
-        }
-        .onChange(of: viewModel.lastStudentOrderReadyForTracking) { _, new in
-            guard let new, new.truckID == resolvedTruck.id else { return }
-            orderToTrack = new
-            viewModel.lastStudentOrderReadyForTracking = nil
         }
     }
 
@@ -242,7 +217,7 @@ struct FoodTruckDetailView: View {
     private func reorderButton(_ userID: String) -> some View {
         Button {
             if viewModel.reorderLastOrder(for: resolvedTruck.id, customerUserID: userID) {
-                showCheckout = true
+                viewModel.presentStudentCheckout(for: resolvedTruck)
             } else {
                 reorderUnavailable = true
             }

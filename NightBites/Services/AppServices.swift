@@ -503,7 +503,8 @@ final class InMemoryBackendService: BackendService {
                 liveLongitude: -118.4440,
                 plan: .pro,
                 hasLiveTracking: true,
-                proSubscriptionActive: true
+                proSubscriptionActive: true,
+                closingAt: Date().addingTimeInterval(28 * 60)
             ),
             FoodTruck(
                 ownerUserID: nil,
@@ -786,7 +787,8 @@ final class SupabaseBackendService: BackendService {
                     liveLongitude: row.live_longitude ?? row.longitude,
                     plan: row.plan == "pro" ? .pro : .free,
                     hasLiveTracking: row.has_live_tracking ?? false,
-                    proSubscriptionActive: row.pro_subscription_active ?? (row.plan == "pro")
+                    proSubscriptionActive: row.pro_subscription_active ?? (row.plan == "pro"),
+                    closingAt: row.closing_at.flatMap { Self.iso8601Formatter.date(from: $0) }
                 )
             }
 
@@ -803,7 +805,7 @@ final class SupabaseBackendService: BackendService {
                     isAvailable: row.is_available,
                     truckId: truckId,
                     imageURL: row.image_url,
-                    tags: []
+                    tags: row.tags ?? []
                 )
             }
 
@@ -1037,6 +1039,7 @@ final class SupabaseBackendService: BackendService {
             let live_longitude: Double
             let has_live_tracking: Bool
             let pro_subscription_active: Bool
+            let closing_at: String?
         }
 
         let payload = TruckInsert(
@@ -1060,7 +1063,8 @@ final class SupabaseBackendService: BackendService {
             live_latitude: truck.liveLatitude,
             live_longitude: truck.liveLongitude,
             has_live_tracking: truck.hasLiveTracking,
-            pro_subscription_active: truck.proSubscriptionActive
+            pro_subscription_active: truck.proSubscriptionActive,
+            closing_at: truck.closingAt.map { Self.iso8601Formatter.string(from: $0) }
         )
 
         _ = try? await insertRow(table: "food_trucks", payload: payload)
@@ -1077,6 +1081,7 @@ final class SupabaseBackendService: BackendService {
             let category: String
             let is_available: Bool
             let image_url: String?
+            let tags: [String]
         }
         let payload = MenuItemInsert(
             id: menuItem.id.uuidString,
@@ -1087,7 +1092,8 @@ final class SupabaseBackendService: BackendService {
             price: menuItem.price,
             category: menuItem.category,
             is_available: menuItem.isAvailable,
-            image_url: menuItem.imageURL
+            image_url: menuItem.imageURL,
+            tags: menuItem.tags
         )
         _ = try? await insertRow(table: "menu_items", payload: payload)
     }
@@ -1102,6 +1108,7 @@ final class SupabaseBackendService: BackendService {
             let live_latitude: Double
             let live_longitude: Double
             let has_live_tracking: Bool
+            let closing_at: String?
         }
 
         let payload = TruckPatch(
@@ -1112,7 +1119,8 @@ final class SupabaseBackendService: BackendService {
             estimated_wait: truck.prepMinutesOverride ?? truck.estimatedWait,
             live_latitude: truck.liveLatitude,
             live_longitude: truck.liveLongitude,
-            has_live_tracking: truck.hasLiveTracking
+            has_live_tracking: truck.hasLiveTracking,
+            closing_at: truck.closingAt.map { Self.iso8601Formatter.string(from: $0) }
         )
 
         _ = try? await patchRows(
@@ -1129,13 +1137,15 @@ final class SupabaseBackendService: BackendService {
             let price: Double
             let category: String
             let is_available: Bool
+            let tags: [String]
         }
         let payload = MenuItemPatch(
             truck_id: menuItem.truckId.uuidString,
             truck_name: truckName,
             price: menuItem.price,
             category: menuItem.category,
-            is_available: menuItem.isAvailable
+            is_available: menuItem.isAvailable,
+            tags: menuItem.tags
         )
 
         _ = try? await patchRows(
@@ -1317,6 +1327,7 @@ private struct FoodTruckRow: Decodable {
     let live_longitude: Double?
     let has_live_tracking: Bool?
     let pro_subscription_active: Bool?
+    let closing_at: String?
 }
 
 private struct MenuItemRow: Decodable {
@@ -1329,6 +1340,7 @@ private struct MenuItemRow: Decodable {
     let category: String
     let is_available: Bool
     let image_url: String?
+    let tags: [String]?
 }
 
 private struct OrderRow: Decodable {

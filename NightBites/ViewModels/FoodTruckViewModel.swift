@@ -50,8 +50,8 @@ final class FoodTruckViewModel {
 
     /// Programmatic checkout push must target a `NavigationStack` root — not `FoodTruckDetailView` — or SwiftUI drops the destination.
     var studentCheckoutTruckID: UUID?
-    /// Filled when checkout completes; the active truck screen should present order tracking.
-    var lastStudentOrderReadyForTracking: Order?
+    /// Filled when checkout completes; `StudentRootView` presents order tracking globally.
+    var studentOrderPendingTracking: Order?
 
     var cartLines: [CartLine] = []
     var nextStopByTruckID: [UUID: String] = [:]
@@ -378,7 +378,8 @@ final class FoodTruckViewModel {
             liveLongitude: campus.longitude,
             plan: plan,
             hasLiveTracking: true,
-            proSubscriptionActive: false
+            proSubscriptionActive: false,
+            closingAt: nil
         )
 
         foodTrucks.insert(truck, at: 0)

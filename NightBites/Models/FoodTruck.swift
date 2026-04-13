@@ -66,6 +66,8 @@ struct FoodTruck: Identifiable {
     var plan: TruckPlan
     var hasLiveTracking: Bool
     var proSubscriptionActive: Bool
+    /// When set, student UI can show “closing soon” before service hours end.
+    var closingAt: Date?
 
     init(
         id: UUID = UUID(),
@@ -93,7 +95,8 @@ struct FoodTruck: Identifiable {
         liveLongitude: Double,
         plan: TruckPlan,
         hasLiveTracking: Bool,
-        proSubscriptionActive: Bool
+        proSubscriptionActive: Bool,
+        closingAt: Date? = nil
     ) {
         self.id = id
         self.ownerUserID = ownerUserID
@@ -121,6 +124,7 @@ struct FoodTruck: Identifiable {
         self.plan = plan
         self.hasLiveTracking = hasLiveTracking
         self.proSubscriptionActive = proSubscriptionActive
+        self.closingAt = closingAt
     }
 
     var coordinate: CLLocationCoordinate2D {

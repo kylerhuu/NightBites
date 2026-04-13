@@ -46,7 +46,7 @@ struct OwnerTruckManagementView: View {
                         if ownerTrucks.count > 1 {
                             Text("This MVP is set up for one truck per account. Additional trucks are hidden from the main workflow.")
                                 .font(.footnote)
-                                .foregroundColor(.secondary)
+                                .foregroundStyle(NightBitesTheme.labelSecondary)
                                 .padding(.horizontal, 4)
                         }
                     } else {
@@ -86,7 +86,7 @@ struct OwnerTruckManagementView: View {
                 .font(.title2.weight(.bold))
 
             Text("Each owner account uses one truck in the MVP. Set it up here, then manage everything from collapsible sections.")
-                .foregroundColor(.secondary)
+                .foregroundStyle(NightBitesTheme.labelSecondary)
 
             HStack(spacing: 10) {
                 textInput("Truck name", text: $truckName)
@@ -99,7 +99,7 @@ struct OwnerTruckManagementView: View {
             VStack(alignment: .leading, spacing: 6) {
                 Text("Campus")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(NightBitesTheme.labelSecondary)
                 Picker("Campus", selection: $selectedCampusName) {
                     ForEach(viewModel.campuses, id: \.name) { campus in
                         Text(campus.name).tag(campus.name)
@@ -358,7 +358,7 @@ struct OwnerTruckManagementView: View {
 
                 if menuItems.isEmpty {
                     Text("No menu items yet.")
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(NightBitesTheme.labelSecondary)
                         .padding(.top, 12)
                 } else {
                     ForEach(menuItems) { item in
@@ -369,7 +369,7 @@ struct OwnerTruckManagementView: View {
                                         .font(.headline)
                                     Text(item.description)
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundStyle(NightBitesTheme.labelSecondary)
                                 }
                                 Spacer()
                                 Toggle(
@@ -556,14 +556,14 @@ struct OwnerTruckManagementView: View {
                     .font(.headline)
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundStyle(NightBitesTheme.labelSecondary)
             }
 
             Spacer()
 
             Image(systemName: "chevron.down")
                 .font(.caption.weight(.bold))
-                .foregroundColor(.secondary)
+                .foregroundStyle(NightBitesTheme.labelSecondary)
         }
     }
 
@@ -600,7 +600,7 @@ struct OwnerTruckManagementView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundStyle(NightBitesTheme.labelSecondary)
             TextField(title, text: text)
                 .textInputAutocapitalization(disableAutoCaps ? .never : .words)
                 .autocorrectionDisabled(disableAutoCaps)

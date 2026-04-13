@@ -33,6 +33,7 @@ struct CampusMapView: View {
                                 }
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("\(truck.name), \(truck.liveStatusLabel)")
                         }
                     }
                 }
@@ -58,6 +59,13 @@ struct CampusMapView: View {
             .sheet(item: $selectedTruck) { truck in
                 NavigationStack {
                     FoodTruckDetailView(viewModel: viewModel, truck: truck)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Close") {
+                                    selectedTruck = nil
+                                }
+                            }
+                        }
                 }
                 .nightBitesStudentCheckoutDestination(viewModel: viewModel)
             }

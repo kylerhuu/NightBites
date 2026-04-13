@@ -14,7 +14,7 @@ struct StudentTruckMenuHeader: View {
                     Text(truck.studentOperationalState.title)
                         .font(.headline.weight(.bold))
                         .foregroundStyle(NightBitesTheme.label)
-                    Text("Until \(truck.activeHours)")
+                    Text(truck.studentHoursCaption)
                         .font(.caption.weight(.medium))
                         .foregroundStyle(NightBitesTheme.labelSecondary)
                 }

@@ -117,7 +117,7 @@ struct StudentMenuItemCard: View {
         ZStack {
             NightBitesTheme.mutedCard
             Image(systemName: "photo")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(NightBitesTheme.labelSecondary)
         }
     }
 
@@ -132,7 +132,7 @@ struct StudentMenuItemCard: View {
             if item.hasModifiers {
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(NightBitesTheme.labelSecondary)
                     .padding(.trailing, 4)
             } else {
                 Button {

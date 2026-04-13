@@ -58,6 +58,10 @@ struct AuthGateView: View {
                             }
                             .buttonStyle(.plain)
                             .disabled(authViewModel.isLoading)
+
+                            Text("Guest mode is great for exploring menus; use a real account when you are ready for synced orders and payments.")
+                                .font(.footnote.weight(.medium))
+                                .foregroundStyle(NightBitesTheme.labelSecondary)
                         } else {
                             Text("Sign in is required in this build so orders can be tied to a real account.")
                                 .font(.footnote.weight(.medium))

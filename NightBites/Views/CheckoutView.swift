@@ -32,6 +32,10 @@ struct CheckoutView: View {
                 Text("Checkout")
                     .font(.largeTitle.weight(.heavy))
 
+                if let user = authViewModel.currentUser, user.isGuest {
+                    guestCheckoutCallout
+                }
+
                 CheckoutPickupMapSnippet(truck: resolvedTruck)
 
                 pickupSection
@@ -371,10 +375,32 @@ struct CheckoutView: View {
         }
     }
 
+    private var guestCheckoutCallout: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "person.crop.circle.badge.questionmark")
+                .font(.title3)
+                .foregroundStyle(NightBitesTheme.saffron)
+            Text(
+                "Guest checkout is for trying the flow offline. When the app uses Supabase, sign in with a verified account so orders and payments can sync."
+            )
+            .font(.footnote.weight(.medium))
+            .foregroundStyle(NightBitesTheme.labelSecondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(NightBitesTheme.mutedCard)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(NightBitesTheme.border, lineWidth: 1)
+        )
+        .accessibilityElement(children: .combine)
+    }
+
     private func sectionTitle(_ text: String) -> some View {
         Text(text.uppercased())
             .font(.caption.weight(.heavy))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(NightBitesTheme.labelSecondary)
     }
 
     private func quickNoteChip(_ text: String) -> some View {
@@ -452,7 +478,7 @@ extension View {
             if let id = viewModel.studentCheckoutTruckID,
                let truck = viewModel.foodTrucks.first(where: { $0.id == id }) {
                 CheckoutView(truck: truck, viewModel: viewModel, onOrderPlaced: { order in
-                    viewModel.lastStudentOrderReadyForTracking = order
+                    viewModel.studentOrderPendingTracking = order
                     viewModel.studentCheckoutTruckID = nil
                 })
             } else {
