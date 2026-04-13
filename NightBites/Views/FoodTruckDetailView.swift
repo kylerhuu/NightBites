@@ -129,6 +129,8 @@ struct FoodTruckDetailView: View {
                         endPoint: .bottom
                     )
                     .ignoresSafeArea(edges: .bottom)
+                    // Don’t steal taps over the tab bar; only the bar button should be interactive.
+                    .allowsHitTesting(false)
                 )
             }
         }
@@ -153,6 +155,9 @@ struct FoodTruckDetailView: View {
         .refreshable {
             await viewModel.refreshStudentCatalog()
         }
+        // Checkout must be declared on this pushed screen (not only the list `NavigationStack` root) or
+        // `presentStudentCheckout` often does not navigate when invoked from the bag bar.
+        .nightBitesStudentCheckoutDestination(viewModel: viewModel)
     }
 
     @ViewBuilder

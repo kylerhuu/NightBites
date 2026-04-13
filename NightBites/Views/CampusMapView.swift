@@ -67,7 +67,6 @@ struct CampusMapView: View {
                             }
                         }
                 }
-                .nightBitesStudentCheckoutDestination(viewModel: viewModel)
             }
         }
     }

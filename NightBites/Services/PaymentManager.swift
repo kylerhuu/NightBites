@@ -310,8 +310,7 @@ final class PaymentManager {
         if method == .cash {
             lastErrorMessage = nil
             lastTransactionID = nil
-            lastCheckoutSession = nil
-            return PaymentCheckoutSession(
+            let session = PaymentCheckoutSession(
                 checkoutID: orderReference,
                 processor: .stripe,
                 paymentMethod: method,
@@ -325,6 +324,9 @@ final class PaymentManager {
                 merchantCountryCode: "US",
                 applePayMerchantIdentifier: AppReleaseConfig.stripeMerchantIdentifier
             )
+            // `confirmPreparedCheckout` reads `lastCheckoutSession`; cash must not leave it nil.
+            lastCheckoutSession = session
+            return session
         }
 
         isProcessing = true

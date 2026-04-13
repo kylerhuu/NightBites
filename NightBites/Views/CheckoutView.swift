@@ -467,7 +467,7 @@ struct CheckoutView: View {
 }
 
 extension View {
-    /// Attach to a `NavigationStack` root (Explore tab or map sheet) so checkout pushes reliably.
+    /// Attach on `FoodTruckDetailView` (inside a `NavigationStack`) so checkout pushes when the bag bar sets `studentCheckoutTruckID`.
     func nightBitesStudentCheckoutDestination(viewModel: FoodTruckViewModel) -> some View {
         navigationDestination(
             isPresented: Binding(

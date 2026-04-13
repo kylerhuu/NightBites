@@ -44,7 +44,6 @@ struct FoodTruckListView: View {
             .navigationTitle("Campus Trucks")
             .searchable(text: $bindableViewModel.searchText, prompt: "Search truck or cuisine")
         }
-        .nightBitesStudentCheckoutDestination(viewModel: viewModel)
     }
 }
 
