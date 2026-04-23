@@ -9,16 +9,6 @@ struct StudentMenuItemCard: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 14) {
-            menuImage
-                .frame(width: 104, height: 104)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(NightBitesTheme.border, lineWidth: 1)
-                )
-                .contentShape(Rectangle())
-                .onTapGesture { onTap() }
-
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(item.name)
@@ -74,6 +64,18 @@ struct StudentMenuItemCard: View {
                     }
                 }
             }
+
+            Spacer(minLength: 0)
+
+            menuImage
+                .frame(width: 104, height: 104)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(NightBitesTheme.border, lineWidth: 1)
+                )
+                .contentShape(Rectangle())
+                .onTapGesture { onTap() }
         }
         .padding(14)
         .background(

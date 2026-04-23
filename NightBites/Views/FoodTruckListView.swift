@@ -24,25 +24,57 @@ struct FoodTruckListView: View {
                 }
                 .pickerStyle(.segmented)
 
-                ScrollView {
-                    LazyVStack(spacing: 10) {
-                        ForEach(bindableViewModel.filteredFoodTrucks) { truck in
-                            NavigationLink {
-                                FoodTruckDetailView(viewModel: viewModel, truck: truck)
-                            } label: {
-                                FoodTruckRowView(truck: truck)
+                if bindableViewModel.filteredFoodTrucks.isEmpty {
+                    ContentUnavailableView(
+                        "No trucks to show",
+                        systemImage: "magnifyingglass",
+                        description: Text(
+                            bindableViewModel.searchText.isEmpty
+                                ? "Try another campus or check back when vendors are live."
+                                : "Try a different name or turn off the search filter."
+                        )
+                    )
+                    .frame(maxWidth: .infinity, minHeight: 220)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 10) {
+                            ForEach(bindableViewModel.filteredFoodTrucks) { truck in
+                                HStack(alignment: .top, spacing: 0) {
+                                    NavigationLink {
+                                        FoodTruckDetailView(viewModel: viewModel, truck: truck)
+                                    } label: {
+                                        FoodTruckRowView(truck: truck)
+                                            .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    Button {
+                                        viewModel.toggleFavoriteTruck(truck.id)
+                                    } label: {
+                                        Image(systemName: viewModel.isFavoriteTruck(truck.id) ? "heart.fill" : "heart")
+                                            .font(.title2)
+                                            .foregroundStyle(
+                                                viewModel.isFavoriteTruck(truck.id) ? NightBitesTheme.ember : NightBitesTheme.labelSecondary
+                                            )
+                                            .frame(width: 48, height: 48)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(
+                                        viewModel.isFavoriteTruck(truck.id) ? "Remove from saved" : "Save truck"
+                                    )
+                                }
                             }
-                            .buttonStyle(.plain)
                         }
+                        .padding(.bottom, 16)
                     }
-                    .padding(.bottom, 16)
+                    .scrollIndicators(.visible)
                 }
-                .scrollIndicators(.visible)
             }
             .padding(.horizontal)
             .nightBitesScreenBackground()
             .navigationTitle("Campus Trucks")
-            .searchable(text: $bindableViewModel.searchText, prompt: "Search truck or cuisine")
+            .searchable(text: $bindableViewModel.searchText, prompt: "Search by truck or cuisine")
         }
     }
 }

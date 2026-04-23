@@ -16,6 +16,7 @@ struct OwnerOrdersQueueView: View {
     @State private var enableLocalNotifications = true
     @State private var keepScreenAwakeForOrders = true
     @State private var enableSMSBackup = false
+    @State private var orderRefreshPoll: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -53,11 +54,15 @@ struct OwnerOrdersQueueView: View {
                         .transition(.move(edge: .top).combined(with: .opacity))
                 }
             }
+            .refreshable {
+                await viewModel.refreshStudentCatalog()
+            }
             .onAppear {
                 loadOperatorPreferences()
                 requestNotificationPermissionIfNeeded()
                 seedSeenOrdersIfNeeded()
                 applyIdleTimerPolicy()
+                startOrderListPolling()
             }
             .onChange(of: queueOrders.map(\.id)) {
                 processQueueChanges()
@@ -69,6 +74,20 @@ struct OwnerOrdersQueueView: View {
             }
             .onDisappear {
                 UIApplication.shared.isIdleTimerDisabled = false
+                orderRefreshPoll?.cancel()
+                orderRefreshPoll = nil
+            }
+        }
+    }
+
+    private func startOrderListPolling() {
+        guard viewModel.isRemoteEnabled else { return }
+        orderRefreshPoll?.cancel()
+        orderRefreshPoll = Task { @MainActor in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 25_000_000_000)
+                if Task.isCancelled { break }
+                await viewModel.refreshStudentCatalog()
             }
         }
     }
@@ -96,7 +115,7 @@ struct OwnerOrdersQueueView: View {
                     Text(truck.name)
                         .font(.title2.weight(.bold))
                         .foregroundStyle(NightBitesTheme.label)
-                    Text("Orders stay here. Truck setup and menu live in My Truck.")
+                    Text("New orders: the big button on each card. To edit the menu, open the My Truck tab.")
                         .font(.subheadline)
                         .foregroundStyle(NightBitesTheme.labelSecondary)
                 }
@@ -126,8 +145,12 @@ struct OwnerOrdersQueueView: View {
 
     private var queueOverview: some View {
         HStack(spacing: 10) {
-            overviewTile(title: "Pending", value: queueOrders.filter { $0.status == .pending }.count, tint: .gray)
-            overviewTile(title: "Prep", value: queueOrders.filter { $0.status == .accepted || $0.status == .preparing }.count, tint: .orange)
+            overviewTile(title: "New", value: queueOrders.filter { $0.status == .pending }.count, tint: .gray)
+            overviewTile(
+                title: "Cooking",
+                value: queueOrders.filter { $0.status == .accepted || $0.status == .preparing }.count,
+                tint: .orange
+            )
             overviewTile(title: "Ready", value: queueOrders.filter { $0.status == .ready }.count, tint: .green)
         }
     }
@@ -160,12 +183,13 @@ struct OwnerOrdersQueueView: View {
     private func orderRow(_ order: Order) -> some View {
         let isExpanded = expandedOrderIDs.contains(order.id)
         let tint = timingTint(for: order)
+        let step = primaryStep(for: order)
 
         return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 12) {
-                Button {
-                    toggleExpansion(for: order.id)
-                } label: {
+            Button {
+                toggleExpansion(for: order.id)
+            } label: {
+                HStack(alignment: .center, spacing: 10) {
                     VStack(alignment: .leading, spacing: 6) {
                         HStack(spacing: 8) {
                             Text(order.customerName)
@@ -181,32 +205,52 @@ struct OwnerOrdersQueueView: View {
                             .foregroundStyle(NightBitesTheme.labelSecondary)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
 
-                VStack(alignment: .trailing, spacing: 8) {
-                    quickAction(for: order)
-                    Image(systemName: isExpanded ? "chevron.up.circle.fill" : "chevron.down.circle.fill")
-                        .font(.title3)
-                        .foregroundStyle(NightBitesTheme.labelSecondary.opacity(0.75))
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(NightBitesTheme.labelSecondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if let step {
+                Button {
+                    viewModel.transitionOrder(order.id, to: step.status)
+                } label: {
+                    Text(step.title)
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(step.tint)
+            } else {
+                HStack {
+                    statusChip(QueueStatusLabel.chip(order.status), tint: statusColor(for: order.status))
+                    Spacer()
+                    Text(order.formattedTotal)
+                        .font(.subheadline.weight(.semibold))
                 }
             }
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 12) {
-                    HStack(spacing: 8) {
-                        statusChip(order.status.rawValue, tint: statusColor(for: order.status))
-                        Text(order.formattedTotal)
-                            .font(.subheadline.weight(.semibold))
+                    if step != nil {
+                        HStack {
+                            statusChip(QueueStatusLabel.chip(order.status), tint: statusColor(for: order.status))
+                            Spacer()
+                            Text(order.formattedTotal)
+                                .font(.subheadline.weight(.semibold))
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: 6) {
                         ForEach(order.items) { item in
                             VStack(alignment: .leading, spacing: 2) {
-                                    Text("x\(item.quantity) \(item.menuItem.name)")
-                                        .font(.subheadline)
-                                        .foregroundStyle(NightBitesTheme.label)
+                                Text("x\(item.quantity) \(item.menuItem.name)")
+                                    .font(.subheadline)
+                                    .foregroundStyle(NightBitesTheme.label)
                                 if let customization = item.customization, !customization.isEmpty {
                                     Text(customization)
                                         .font(.caption)
@@ -220,20 +264,6 @@ struct OwnerOrdersQueueView: View {
                         Text("Notes: \(instructions)")
                             .font(.caption)
                             .foregroundStyle(NightBitesTheme.labelSecondary)
-                    }
-
-                    HStack(spacing: 8) {
-                        if order.status == .pending {
-                            actionButton("Accept", tint: .blue) {
-                                viewModel.transitionOrder(order.id, to: .accepted)
-                            }
-                        }
-
-                        if let next = detailAction(for: order) {
-                            actionButton(next.title, tint: next.tint) {
-                                viewModel.transitionOrder(order.id, to: next.status)
-                            }
-                        }
                     }
                 }
             }
@@ -254,47 +284,31 @@ struct OwnerOrdersQueueView: View {
         .shadow(color: Color.black.opacity(0.035), radius: 10, y: 4)
     }
 
-    private func quickAction(for order: Order) -> some View {
-        Group {
-            if let next = detailAction(for: order) {
-                Button(next.title) {
-                    viewModel.transitionOrder(order.id, to: next.status)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(next.tint)
-            } else {
-                statusChip(shortStatusLabel(for: order.status), tint: statusColor(for: order.status))
-            }
-        }
-    }
-
-    private func shortStatusLabel(for status: OrderStatus) -> String {
-        switch status {
-        case .pending:
-            return "Pending"
-        case .accepted:
-            return "Accepted"
-        case .preparing:
-            return "Prep"
-        case .ready:
-            return "Ready"
-        case .completed:
-            return "Done"
-        case .cancelled:
-            return "Cancelled"
-        }
-    }
-
-    private func detailAction(for order: Order) -> (title: String, status: OrderStatus, tint: Color)? {
+    /// One obvious action per order in sequence.
+    private func primaryStep(for order: Order) -> (title: String, status: OrderStatus, tint: Color)? {
         switch order.status {
+        case .pending:
+            return ("Accept order", .accepted, .blue)
         case .accepted:
-            return ("Start Prep", .preparing, .orange)
+            return ("Start cooking", .preparing, .orange)
         case .preparing:
-            return ("Mark Ready", .ready, .green)
+            return ("Ready for pickup", .ready, .green)
         case .ready:
-            return ("Complete", .completed, .gray)
-        case .pending, .completed, .cancelled:
+            return ("Picked up", .completed, .gray)
+        case .completed, .cancelled:
             return nil
+        }
+    }
+
+    private enum QueueStatusLabel {
+        static func chip(_ status: OrderStatus) -> String {
+            switch status {
+            case .pending: return "New"
+            case .accepted, .preparing: return "Cooking"
+            case .ready: return "At window"
+            case .completed: return "Done"
+            case .cancelled: return "Cancelled"
+            }
         }
     }
 
@@ -510,12 +524,6 @@ struct OwnerOrdersQueueView: View {
     private func loadSeenOrdersFromStorage() -> Set<UUID> {
         let values = UserDefaults.standard.stringArray(forKey: seenOrdersKey()) ?? []
         return Set(values.compactMap(UUID.init(uuidString:)))
-    }
-
-    private func actionButton(_ title: String, tint: Color, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .buttonStyle(.borderedProminent)
-            .tint(tint)
     }
 
     private func statusColor(for status: OrderStatus) -> Color {

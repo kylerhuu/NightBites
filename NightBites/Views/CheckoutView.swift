@@ -101,7 +101,7 @@ struct CheckoutView: View {
                         .stroke(NightBitesTheme.border, lineWidth: 1)
                 )
 
-            Text("Est. prep window: \(resolvedTruck.formattedWait)")
+            Text("Typical wait when you order: about \(resolvedTruck.formattedWait).")
                 .font(.footnote.weight(.medium))
                 .foregroundStyle(.secondary)
         }
@@ -178,7 +178,7 @@ struct CheckoutView: View {
 
     private var cartSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            sectionTitle("Your bag")
+            sectionTitle("Order summary")
             if viewModel.cartLines.isEmpty {
                 Text("Your bag is empty.")
                     .foregroundStyle(.secondary)

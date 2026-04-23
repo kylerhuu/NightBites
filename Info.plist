@@ -30,10 +30,12 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>NightBites uses your location to show nearby campus food trucks and map distance.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>NightBites uses your photos so you can add menu item images from your library.</string>
 	<key>PAYMENTS_API_BASE_URL</key>
 	<string>http://127.0.0.1:3000</string>
 	<key>PRIVACY_POLICY_URL</key>
-	<string>https://nightbites.app/privacy</string>
+	<string>https://www.kylerhu.com/projects/nightbites/legal/privacy</string>
 	<key>SENTRY_DSN</key>
 	<string></string>
 	<key>SMS_BACKUP_WEBHOOK_URL</key>
@@ -43,13 +45,13 @@
 	<key>STRIPE_PUBLISHABLE_KEY</key>
 	<string></string>
 	<key>SUPABASE_ANON_KEY</key>
-	<string>sb_publishable_YlkJnMV4U-8I-smf5CoGgw_56B5YdyS</string>
+	<string>sb_publishable_vXOmKRRScu6POyrwW1asrQ_5jtNeSXz</string>
 	<key>SUPABASE_URL</key>
-	<string>https://vlzuqvpiuqonfilvskue.supabase.co</string>
+	<string>https://qzpnidhyhpubzmbnikfy.supabase.co</string>
 	<key>SUPPORT_EMAIL</key>
 	<string>kylerhu1549@gmail.com</string>
 	<key>TERMS_URL</key>
-	<string>https://nightbites.app/terms</string>
+	<string>https://www.kylerhu.com/projects/nightbites/legal/terms-of-service</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

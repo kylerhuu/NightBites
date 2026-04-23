@@ -20,6 +20,8 @@ protocol BackendService {
     func submit(menuItem: MenuItem, truckName: String) async
     func update(truck: FoodTruck) async
     func update(menuItem: MenuItem, truckName: String) async
+    /// Public URL to use as `MenuItem.imageURL` after a successful upload.
+    func uploadMenuItemImage(truckID: UUID, itemID: UUID, imageData: Data, contentType: String) async throws -> String
 }
 
 protocol AuthService {
@@ -724,12 +726,19 @@ final class InMemoryBackendService: BackendService {
     func update(truck _: FoodTruck) async {}
 
     func update(menuItem _: MenuItem, truckName _: String) async {}
+
+    func uploadMenuItemImage(truckID: UUID, itemID: UUID, imageData: Data, contentType: String) async throws -> String {
+        // Offline catalog: use an inline data URL so AsyncImage can show the pick without a server.
+        let b64 = imageData.base64EncodedString()
+        return "data:\(contentType);base64,\(b64)"
+    }
 }
 
 final class SupabaseBackendService: BackendService {
     private let config: SupabaseConfig
     private let session: URLSession
     private let fallback: InMemoryBackendService
+    private static let menuAssetsBucket = "menu-assets"
     private static let iso8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -805,6 +814,7 @@ final class SupabaseBackendService: BackendService {
                     isAvailable: row.is_available,
                     truckId: truckId,
                     imageURL: row.image_url,
+                    modifierGroups: row.modifier_groups ?? [],
                     tags: row.tags ?? []
                 )
             }
@@ -1082,6 +1092,7 @@ final class SupabaseBackendService: BackendService {
             let is_available: Bool
             let image_url: String?
             let tags: [String]
+            let modifier_groups: [MenuModifierGroup]
         }
         let payload = MenuItemInsert(
             id: menuItem.id.uuidString,
@@ -1093,7 +1104,8 @@ final class SupabaseBackendService: BackendService {
             category: menuItem.category,
             is_available: menuItem.isAvailable,
             image_url: menuItem.imageURL,
-            tags: menuItem.tags
+            tags: menuItem.tags,
+            modifier_groups: menuItem.modifierGroups
         )
         _ = try? await insertRow(table: "menu_items", payload: payload)
     }
@@ -1134,18 +1146,26 @@ final class SupabaseBackendService: BackendService {
         struct MenuItemPatch: Encodable {
             let truck_id: String
             let truck_name: String
+            let name: String
+            let description: String
             let price: Double
             let category: String
             let is_available: Bool
+            let image_url: String?
             let tags: [String]
+            let modifier_groups: [MenuModifierGroup]
         }
         let payload = MenuItemPatch(
             truck_id: menuItem.truckId.uuidString,
             truck_name: truckName,
+            name: menuItem.name,
+            description: menuItem.description,
             price: menuItem.price,
             category: menuItem.category,
             is_available: menuItem.isAvailable,
-            tags: menuItem.tags
+            image_url: menuItem.imageURL,
+            tags: menuItem.tags,
+            modifier_groups: menuItem.modifierGroups
         )
 
         _ = try? await patchRows(
@@ -1153,6 +1173,31 @@ final class SupabaseBackendService: BackendService {
             filters: [URLQueryItem(name: "id", value: "eq.\(menuItem.id.uuidString)")],
             payload: payload
         )
+    }
+
+    func uploadMenuItemImage(truckID: UUID, itemID: UUID, imageData: Data, contentType: String) async throws -> String {
+        let ext: String
+        if contentType.contains("png") { ext = "png" } else if contentType.contains("webp") { ext = "webp" } else { ext = "jpg" }
+        let uploadUrl = config.projectURL
+            .appendingPathComponent("storage/v1/object")
+            .appendingPathComponent(Self.menuAssetsBucket)
+            .appendingPathComponent(truckID.uuidString)
+            .appendingPathComponent("\(itemID.uuidString).\(ext)")
+
+        var request = URLRequest(url: uploadUrl)
+        request.httpMethod = "POST"
+        request.httpBody = imageData
+        request.setValue(contentType, forHTTPHeaderField: "Content-Type")
+        request.setValue("true", forHTTPHeaderField: "x-upsert")
+
+        _ = try await performAuthorizedRequest(request)
+        return publicMenuAssetURL(truckID: truckID, itemID: itemID, fileExtension: ext)
+    }
+
+    private func publicMenuAssetURL(truckID: UUID, itemID: UUID, fileExtension: String) -> String {
+        var base = config.projectURL.absoluteString
+        if base.hasSuffix("/") { base.removeLast() }
+        return "\(base)/storage/v1/object/public/\(Self.menuAssetsBucket)/\(truckID.uuidString)/\(itemID.uuidString).\(fileExtension)"
     }
 
     private func fetchRows<T: Decodable>(table: String) async throws -> [T] {
@@ -1341,6 +1386,7 @@ private struct MenuItemRow: Decodable {
     let is_available: Bool
     let image_url: String?
     let tags: [String]?
+    let modifier_groups: [MenuModifierGroup]?
 }
 
 private struct OrderRow: Decodable {

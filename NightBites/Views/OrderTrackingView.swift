@@ -23,6 +23,9 @@ struct OrderTrackingView: View {
         .nightBitesScreenBackground()
         .navigationTitle("Order status")
         .navigationBarTitleDisplayMode(.inline)
+        .refreshable {
+            await viewModel.refreshStudentCatalog()
+        }
     }
 
     private func content(order: Order) -> some View {
@@ -80,9 +83,26 @@ struct OrderTrackingView: View {
                 }
                 .padding(16)
                 .nightBitesCard()
+
+                if let helpURL = orderHelpLink(order: order) {
+                    Link(destination: helpURL) {
+                        Label("Problem with this order? Email us", systemImage: "envelope.open")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(NightBitesTheme.ember)
+                }
             }
             .padding(18)
         }
+    }
+
+    private func orderHelpLink(order: Order) -> URL? {
+        let local = AppReleaseConfig.supportEmail
+        let subject = "NightBites order #\(order.shortOrderNumber) — \(order.truckName)"
+        let enc = subject.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        return URL(string: "mailto:\(local)?subject=\(enc)")
     }
 
     private func timeline(for status: OrderStatus) -> some View {

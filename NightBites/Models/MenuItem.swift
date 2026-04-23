@@ -8,7 +8,7 @@ struct MenuItem: Identifiable, Hashable {
     var category: String
     var isAvailable: Bool
     let truckId: UUID
-    let imageURL: String?
+    var imageURL: String?
     var modifierGroups: [MenuModifierGroup]
     /// Short merchandising labels, e.g. "Best Seller", "Sells Out Fast".
     var tags: [String]
@@ -56,10 +56,10 @@ extension MenuItem {
     }
 }
 
-struct MenuModifierGroup: Identifiable, Hashable {
+struct MenuModifierGroup: Identifiable, Hashable, Codable {
     let id: UUID
     let name: String
-    let isRequired: Bool
+    var isRequired: Bool
     var minSelection: Int
     var maxSelection: Int
     var options: [MenuModifierOption]
@@ -81,7 +81,7 @@ struct MenuModifierGroup: Identifiable, Hashable {
     }
 }
 
-struct MenuModifierOption: Identifiable, Hashable {
+struct MenuModifierOption: Identifiable, Hashable, Codable {
     let id: UUID
     let name: String
     let priceDelta: Double

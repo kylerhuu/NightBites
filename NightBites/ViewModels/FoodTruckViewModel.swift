@@ -31,6 +31,7 @@ final class FoodTruckViewModel {
     private static let persistedOrdersKey = "nightbites.orders.v1"
     private static let persistedAutoAcceptKey = "nightbites.orders.autoAccept.v1"
     private static let persistedPaymentSettingsKey = "nightbites.trucks.paymentSettings.v1"
+    private static let favoriteTruckIDsKey = "nightbites.favoriteTruckIDs.v1"
     private let backendService: BackendService
     private var gpsUpdateTask: Task<Void, Never>?
     private var remoteSyncTask: Task<Void, Never>?
@@ -45,6 +46,9 @@ final class FoodTruckViewModel {
     var selectedCampusID: UUID?
     var selectedCuisine: String = "All"
     var searchText: String = ""
+
+    /// Saved trucks move to the top of the campus list (one tap from the list).
+    private(set) var favoriteTruckIDs: Set<UUID> = []
 
     var remoteSyncPhase: RemoteSyncPhase = .idle
 
@@ -64,6 +68,7 @@ final class FoodTruckViewModel {
     init(backendService: BackendService) {
         self.backendService = backendService
         loadData()
+        loadFavoriteTrucks()
         selectedCampusID = campuses.first?.id
         if backendService.isRemoteEnabled {
             Task {
@@ -92,7 +97,7 @@ final class FoodTruckViewModel {
     }
 
     var filteredFoodTrucks: [FoodTruck] {
-        foodTrucks
+        let list = foodTrucks
             .filter(\.isDiscoverable)
             .filter { truck in
                 guard let campus = selectedCampus else { return true }
@@ -106,7 +111,33 @@ final class FoodTruckViewModel {
                 truck.name.localizedCaseInsensitiveContains(searchText) ||
                 truck.cuisineType.localizedCaseInsensitiveContains(searchText)
             }
-            .sorted { $0.distance < $1.distance }
+        return list.sorted { a, b in
+            let fa = favoriteTruckIDs.contains(a.id)
+            let fb = favoriteTruckIDs.contains(b.id)
+            if fa != fb { return fa }
+            return a.distance < b.distance
+        }
+    }
+
+    func isFavoriteTruck(_ id: UUID) -> Bool {
+        favoriteTruckIDs.contains(id)
+    }
+
+    func toggleFavoriteTruck(_ id: UUID) {
+        if favoriteTruckIDs.contains(id) {
+            favoriteTruckIDs.remove(id)
+        } else {
+            favoriteTruckIDs.insert(id)
+        }
+        UserDefaults.standard.set(
+            favoriteTruckIDs.map(\.uuidString).sorted(),
+            forKey: Self.favoriteTruckIDsKey
+        )
+    }
+
+    private func loadFavoriteTrucks() {
+        let list = UserDefaults.standard.stringArray(forKey: Self.favoriteTruckIDsKey) ?? []
+        favoriteTruckIDs = Set(list.compactMap(UUID.init(uuidString:)))
     }
 
     var cartTruckID: UUID? {
@@ -395,26 +426,72 @@ final class FoodTruckViewModel {
         description: String,
         price: Double,
         category: String,
-        imageURL: String?
+        imageURL: String?,
+        localImageData: Data? = nil,
+        localImageContentType: String = "image/jpeg"
     ) {
         let trimmedName = name.trimmed
         let trimmedDescription = description.trimmed
         guard !trimmedName.isEmpty, !trimmedDescription.isEmpty, price > 0 else { return }
 
-        let item = MenuItem(
+        // When uploading a photo, insert first; image URL is filled after storage upload.
+        let initialImageURL: String? = (localImageData == nil) ? imageURL : nil
+        var item = MenuItem(
             name: trimmedName,
             description: trimmedDescription,
             price: price,
             category: category,
             isAvailable: true,
             truckId: truckID,
-            imageURL: imageURL,
+            imageURL: initialImageURL,
             tags: []
         )
         menuItems.insert(item, at: 0)
         let truckName = foodTrucks.first(where: { $0.id == truckID })?.name ?? ""
         Task {
             await backendService.submit(menuItem: item, truckName: truckName)
+            if let data = localImageData {
+                do {
+                    let publicURL = try await backendService.uploadMenuItemImage(
+                        truckID: truckID,
+                        itemID: item.id,
+                        imageData: data,
+                        contentType: localImageContentType
+                    )
+                    if let index = menuItems.firstIndex(where: { $0.id == item.id }) {
+                        menuItems[index].imageURL = publicURL
+                        item = menuItems[index]
+                        if backendService.isRemoteEnabled {
+                            await backendService.update(menuItem: item, truckName: truckName)
+                        }
+                    }
+                } catch {
+                    AppTelemetry.track(error: "menu_item_image_upload_failed")
+                }
+            }
+            await refreshFromRemote()
+        }
+    }
+
+    /// Same item again with a new id (faster than retyping a popular plate).
+    func duplicateMenuItem(itemID: UUID) {
+        guard let item = menuItems.first(where: { $0.id == itemID }) else { return }
+        let name = item.name.hasSuffix(" (copy)") ? item.name : item.name + " (copy)"
+        let copy = MenuItem(
+            name: name,
+            description: item.description,
+            price: item.price,
+            category: item.category,
+            isAvailable: item.isAvailable,
+            truckId: item.truckId,
+            imageURL: item.imageURL,
+            modifierGroups: item.modifierGroups,
+            tags: item.tags
+        )
+        menuItems.insert(copy, at: 0)
+        let truckName = foodTrucks.first(where: { $0.id == item.truckId })?.name ?? ""
+        Task {
+            await backendService.submit(menuItem: copy, truckName: truckName)
             await refreshFromRemote()
         }
     }
@@ -463,6 +540,7 @@ final class FoodTruckViewModel {
                 maxSelection: normalizedMax
             )
         )
+        persistMenuItemChange(itemID: itemID)
     }
 
     func addModifierOption(
@@ -490,6 +568,33 @@ final class FoodTruckViewModel {
         menuItems[itemIndex].modifierGroups[groupIndex].options.append(
             MenuModifierOption(name: trimmedOption, priceDelta: priceDelta)
         )
+        persistMenuItemChange(itemID: itemID)
+    }
+
+    /// Replaces the entire modifier set (used from the item editor). Persists to Supabase when remote.
+    func replaceModifierGroups(itemID: UUID, groups: [MenuModifierGroup]) {
+        guard let index = menuItems.firstIndex(where: { $0.id == itemID }) else { return }
+        menuItems[index].modifierGroups = groups
+        persistMenuItemChange(itemID: itemID)
+    }
+
+    /// Uploads a new photo from the library and updates the item’s public image URL.
+    func replaceMenuItemImageFromPhoto(itemID: UUID, data: Data, contentType: String) async {
+        guard let item = menuItems.first(where: { $0.id == itemID }) else { return }
+        do {
+            let publicURL = try await backendService.uploadMenuItemImage(
+                truckID: item.truckId,
+                itemID: itemID,
+                imageData: data,
+                contentType: contentType
+            )
+            if let index = menuItems.firstIndex(where: { $0.id == itemID }) {
+                menuItems[index].imageURL = publicURL
+            }
+            persistMenuItemChange(itemID: itemID)
+        } catch {
+            AppTelemetry.track(error: "menu_item_image_reupload_failed")
+        }
     }
 
     func activateProSubscription(truckID: UUID) {

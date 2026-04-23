@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 
 struct OwnerTruckManagementView: View {
@@ -15,6 +16,7 @@ struct OwnerTruckManagementView: View {
     @State private var menuPrice = ""
     @State private var menuCategory = "Main"
     @State private var menuImageURL = ""
+    @State private var newMenuPhoto: PhotosPickerItem?
 
     @State private var activeHoursDraft = ""
     @State private var latitudeDraft = ""
@@ -329,8 +331,22 @@ struct OwnerTruckManagementView: View {
 
                 HStack(spacing: 10) {
                     textInput("Price", text: $menuPrice, disableAutoCaps: true, keyboard: .decimalPad)
+                    if viewModel.isRemoteEnabled {
+                        PhotosPicker(selection: $newMenuPhoto, matching: .images, photoLibrary: .shared()) {
+                            Label("Item photo", systemImage: "photo.badge.plus")
+                        }
+                        .labelStyle(.titleAndIcon)
+                    }
+                }
+                if newMenuPhoto != nil {
+                    Text("Photo will upload when you add the item")
+                        .font(.caption2)
+                        .foregroundStyle(NightBitesTheme.labelSecondary)
+                }
+                DisclosureGroup("Optional: paste an image link instead") {
                     textInput("Image URL", text: $menuImageURL, disableAutoCaps: true)
                 }
+                .font(.subheadline.weight(.semibold))
 
                 Button("Add Menu Item") {
                     addMenuItem(to: truck)
@@ -363,7 +379,7 @@ struct OwnerTruckManagementView: View {
                 } else {
                     ForEach(menuItems) { item in
                         VStack(alignment: .leading, spacing: 10) {
-                            HStack {
+                            HStack(alignment: .top) {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text(item.name)
                                         .font(.headline)
@@ -371,15 +387,20 @@ struct OwnerTruckManagementView: View {
                                         .font(.caption)
                                         .foregroundStyle(NightBitesTheme.labelSecondary)
                                 }
-                                Spacer()
-                                Toggle(
-                                    "Available",
-                                    isOn: Binding(
-                                        get: { item.isAvailable },
-                                        set: { viewModel.setMenuItemAvailability(itemID: item.id, isAvailable: $0) }
-                                    )
-                                )
-                                .labelsHidden()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                                Button {
+                                    if item.isAvailable {
+                                        viewModel.markMenuItemSoldOut(itemID: item.id)
+                                    } else {
+                                        viewModel.setMenuItemAvailability(itemID: item.id, isAvailable: true)
+                                    }
+                                } label: {
+                                    Text(item.isAvailable ? "Out" : "Back on")
+                                }
+                                .font(.subheadline.weight(.bold))
+                                .buttonStyle(.bordered)
+                                .tint(item.isAvailable ? .orange : .green)
                             }
 
                             HStack(spacing: 10) {
@@ -417,6 +438,23 @@ struct OwnerTruckManagementView: View {
                                 .buttonStyle(.bordered)
                                 .disabled(!canSaveCategory(for: item))
                             }
+
+                            HStack(spacing: 10) {
+                                NavigationLink {
+                                    OwnerMenuItemEditorView(truck: truck, item: item)
+                                } label: {
+                                    Label("Edit item", systemImage: "slider.horizontal.3")
+                                }
+                                .font(.subheadline.weight(.semibold))
+
+                                Button {
+                                    viewModel.duplicateMenuItem(itemID: item.id)
+                                } label: {
+                                    Label("Duplicate", systemImage: "doc.on.doc")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .buttonStyle(.bordered)
+                            }
                         }
                         .padding(.vertical, 8)
 
@@ -430,7 +468,7 @@ struct OwnerTruckManagementView: View {
         } label: {
             sectionLabel(
                 "Existing Menu",
-                subtitle: "Edit prices, categories, and availability",
+                subtitle: "Mark items out, edit prices, duplicate a plate",
                 systemImage: "fork.knife.circle",
                 accent: NightBitesTheme.info
             )
@@ -490,20 +528,40 @@ struct OwnerTruckManagementView: View {
 
     private func addMenuItem(to truck: FoodTruck) {
         guard let price = Double(menuPrice) else { return }
-        viewModel.addMenuItem(
-            to: truck.id,
-            name: menuName,
-            description: menuDescription,
-            price: price,
-            category: isBlank(menuCategory) ? "Main" : trimmed(menuCategory),
-            imageURL: nilIfBlank(menuImageURL)
-        )
+        Task { @MainActor in
+            var data: Data?
+            var contentType = "image/jpeg"
+            if let item = newMenuPhoto,
+               let loaded = try? await item.loadTransferable(type: Data.self) {
+                data = loaded
+                contentType = menuItemImageContentType(loaded)
+            }
+            let category = isBlank(menuCategory) ? "Main" : trimmed(menuCategory)
+            let fromURL: String? = (data == nil) ? nilIfBlank(menuImageURL) : nil
+            viewModel.addMenuItem(
+                to: truck.id,
+                name: menuName,
+                description: menuDescription,
+                price: price,
+                category: category,
+                imageURL: fromURL,
+                localImageData: data,
+                localImageContentType: contentType
+            )
+            menuName = ""
+            menuDescription = ""
+            menuPrice = ""
+            menuCategory = "Main"
+            menuImageURL = ""
+            newMenuPhoto = nil
+        }
+    }
 
-        menuName = ""
-        menuDescription = ""
-        menuPrice = ""
-        menuCategory = "Main"
-        menuImageURL = ""
+    private func menuItemImageContentType(_ data: Data) -> String {
+        guard data.count >= 4 else { return "image/jpeg" }
+        if data[0] == 0x89, data[1] == 0x50, data[2] == 0x4E, data[3] == 0x47 { return "image/png" }
+        if data[0] == 0xFF, data[1] == 0xD8 { return "image/jpeg" }
+        return "image/jpeg"
     }
 
     private func activeOrderCount(for truck: FoodTruck) -> Int {

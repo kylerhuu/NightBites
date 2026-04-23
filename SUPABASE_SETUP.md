@@ -4,6 +4,8 @@ Add these keys in your iOS target Info settings:
 - `SUPABASE_URL` = `https://<project-ref>.supabase.co`
 - `SUPABASE_ANON_KEY` = `<anon-key>`
 
+**Empty database:** you can run everything in one go by pasting [supabase/seed_fresh_project.sql](supabase/seed_fresh_project.sql) into the Supabase SQL Editor.
+
 ## Tables expected by app
 
 ```sql
@@ -52,7 +54,8 @@ create table if not exists menu_items (
   category text not null,
   is_available boolean not null default true,
   image_url text,
-  tags text[] default '{}'::text[]
+  tags text[] default '{}'::text[],
+  modifier_groups jsonb not null default '[]'::jsonb
 );
 
 create table if not exists orders (
@@ -137,6 +140,11 @@ create trigger on_auth_user_created_profile
 after insert on auth.users
 for each row execute function public.handle_new_user_profile();
 ```
+
+## Menu customizations and photo storage
+
+- Column `menu_items.modifier_groups` (jsonb) and the public storage bucket for uploads are created in [20260422_menu_modifiers_and_storage.sql](supabase/migrations/20260422_menu_modifiers_and_storage.sql).
+- If you are starting from an **empty** project, use [docs/FRESH_SUPABASE_PROJECT.md](docs/FRESH_SUPABASE_PROJECT.md) for a short checklist (tables, migrations, seed campus, auth, storage).
 
 ## Order pricing migration
 
