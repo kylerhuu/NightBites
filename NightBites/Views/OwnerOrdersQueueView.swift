@@ -16,7 +16,6 @@ struct OwnerOrdersQueueView: View {
     @State private var enableLocalNotifications = true
     @State private var keepScreenAwakeForOrders = true
     @State private var enableSMSBackup = false
-    @State private var orderRefreshPoll: Task<Void, Never>?
 
     var body: some View {
         NavigationStack {
@@ -62,7 +61,6 @@ struct OwnerOrdersQueueView: View {
                 requestNotificationPermissionIfNeeded()
                 seedSeenOrdersIfNeeded()
                 applyIdleTimerPolicy()
-                startOrderListPolling()
             }
             .onChange(of: queueOrders.map(\.id)) {
                 processQueueChanges()
@@ -74,20 +72,6 @@ struct OwnerOrdersQueueView: View {
             }
             .onDisappear {
                 UIApplication.shared.isIdleTimerDisabled = false
-                orderRefreshPoll?.cancel()
-                orderRefreshPoll = nil
-            }
-        }
-    }
-
-    private func startOrderListPolling() {
-        guard viewModel.isRemoteEnabled else { return }
-        orderRefreshPoll?.cancel()
-        orderRefreshPoll = Task { @MainActor in
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 25_000_000_000)
-                if Task.isCancelled { break }
-                await viewModel.refreshStudentCatalog()
             }
         }
     }

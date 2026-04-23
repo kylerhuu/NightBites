@@ -144,6 +144,7 @@ for each row execute function public.handle_new_user_profile();
 ## Menu customizations and photo storage
 
 - Column `menu_items.modifier_groups` (jsonb) and the public storage bucket for uploads are created in [20260422_menu_modifiers_and_storage.sql](supabase/migrations/20260422_menu_modifiers_and_storage.sql).
+- **Live order updates** in the iOS app use Supabase Realtime on `public.orders`. After the `orders` table exists, run [20260423_enable_realtime_orders.sql](supabase/migrations/20260423_enable_realtime_orders.sql) so the table is part of the `supabase_realtime` publication.
 - If you are starting from an **empty** project, use [docs/FRESH_SUPABASE_PROJECT.md](docs/FRESH_SUPABASE_PROJECT.md) for a short checklist (tables, migrations, seed campus, auth, storage).
 
 ## Order pricing migration

@@ -17,9 +17,11 @@ protocol BackendService {
     func submit(application: TruckApplication) async
     func submit(review: Review) async
     func submit(truck: FoodTruck) async
-    func submit(menuItem: MenuItem, truckName: String) async
+    @discardableResult
+    func submit(menuItem: MenuItem, truckName: String) async -> Bool
     func update(truck: FoodTruck) async
-    func update(menuItem: MenuItem, truckName: String) async
+    @discardableResult
+    func update(menuItem: MenuItem, truckName: String) async -> Bool
     /// Public URL to use as `MenuItem.imageURL` after a successful upload.
     func uploadMenuItemImage(truckID: UUID, itemID: UUID, imageData: Data, contentType: String) async throws -> String
 }
@@ -81,6 +83,11 @@ private enum AuthSessionStore {
         guard let data = try? JSONEncoder().encode(session) else { return }
         UserDefaults.standard.set(data, forKey: sessionKey)
     }
+}
+
+/// Allows other app types to use the current Supabase JWT without exposing `AuthSessionStore`.
+enum SupabaseSessionAccess {
+    static var accessToken: String? { AuthSessionStore.loadSession()?.accessToken }
 }
 
 struct SupabaseConfig {
@@ -721,11 +728,11 @@ final class InMemoryBackendService: BackendService {
 
     func submit(truck _: FoodTruck) async {}
 
-    func submit(menuItem _: MenuItem, truckName _: String) async {}
+    func submit(menuItem _: MenuItem, truckName _: String) async -> Bool { true }
 
     func update(truck _: FoodTruck) async {}
 
-    func update(menuItem _: MenuItem, truckName _: String) async {}
+    func update(menuItem _: MenuItem, truckName _: String) async -> Bool { true }
 
     func uploadMenuItemImage(truckID: UUID, itemID: UUID, imageData: Data, contentType: String) async throws -> String {
         // Offline catalog: use an inline data URL so AsyncImage can show the pick without a server.
@@ -1080,7 +1087,7 @@ final class SupabaseBackendService: BackendService {
         _ = try? await insertRow(table: "food_trucks", payload: payload)
     }
 
-    func submit(menuItem: MenuItem, truckName: String) async {
+    func submit(menuItem: MenuItem, truckName: String) async -> Bool {
         struct MenuItemInsert: Encodable {
             let id: String
             let truck_id: String
@@ -1107,7 +1114,13 @@ final class SupabaseBackendService: BackendService {
             tags: menuItem.tags,
             modifier_groups: menuItem.modifierGroups
         )
-        _ = try? await insertRow(table: "menu_items", payload: payload)
+        do {
+            _ = try await insertRow(table: "menu_items", payload: payload)
+            return true
+        } catch {
+            AppTelemetry.track(error: "menu_item_submit_failed")
+            return false
+        }
     }
 
     func update(truck: FoodTruck) async {
@@ -1142,7 +1155,7 @@ final class SupabaseBackendService: BackendService {
         )
     }
 
-    func update(menuItem: MenuItem, truckName: String) async {
+    func update(menuItem: MenuItem, truckName: String) async -> Bool {
         struct MenuItemPatch: Encodable {
             let truck_id: String
             let truck_name: String
@@ -1168,11 +1181,17 @@ final class SupabaseBackendService: BackendService {
             modifier_groups: menuItem.modifierGroups
         )
 
-        _ = try? await patchRows(
-            table: "menu_items",
-            filters: [URLQueryItem(name: "id", value: "eq.\(menuItem.id.uuidString)")],
-            payload: payload
-        )
+        do {
+            _ = try await patchRows(
+                table: "menu_items",
+                filters: [URLQueryItem(name: "id", value: "eq.\(menuItem.id.uuidString)")],
+                payload: payload
+            )
+            return true
+        } catch {
+            AppTelemetry.track(error: "menu_item_update_failed")
+            return false
+        }
     }
 
     func uploadMenuItemImage(truckID: UUID, itemID: UUID, imageData: Data, contentType: String) async throws -> String {

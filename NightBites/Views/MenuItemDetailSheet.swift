@@ -12,14 +12,32 @@ struct MenuItemDetailSheet: View {
     @State private var quantity = 1
     @State private var validationMessage: String?
 
+    private var estimatedUnitPriceFormatted: String {
+        String(
+            format: "$%.2f",
+            CartLine(
+                menuItem: menuItem,
+                quantity: 1,
+                selectionsByGroupID: selections
+            ).unitPrice()
+        )
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     hero
 
-                    Text(menuItem.name)
-                        .font(.title2.weight(.heavy))
+                    HStack(alignment: .top, spacing: 12) {
+                        Text(menuItem.name)
+                            .font(.title2.weight(.heavy))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        Text(estimatedUnitPriceFormatted)
+                            .font(.title2.weight(.heavy))
+                            .foregroundStyle(NightBitesTheme.saffron)
+                            .monospacedDigit()
+                    }
 
                     Text(menuItem.description)
                         .font(.body)

@@ -25,6 +25,23 @@ enum RemoteSyncPhase: Equatable {
     case failed(String)
 }
 
+enum OwnerMenuItemSaveError: LocalizedError {
+    case invalidInput
+    case remoteSaveFailed
+    case itemNotFound
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidInput:
+            return "Please fill out all required fields before saving."
+        case .remoteSaveFailed:
+            return "Could not sync this menu item. Check your connection and try again."
+        case .itemNotFound:
+            return "This item no longer exists. Refresh and try again."
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class FoodTruckViewModel {
@@ -35,6 +52,8 @@ final class FoodTruckViewModel {
     private let backendService: BackendService
     private var gpsUpdateTask: Task<Void, Never>?
     private var remoteSyncTask: Task<Void, Never>?
+    private var supabaseOrdersRealtime: SupabaseOrdersRealtimeService?
+    private var ordersRealtimeResyncDebounce: Task<Void, Never>?
 
     var campuses: [Campus] = []
     var foodTrucks: [FoodTruck] = []
@@ -420,6 +439,7 @@ final class FoodTruckViewModel {
         }
     }
 
+    @discardableResult
     func addMenuItem(
         to truckID: UUID,
         name: String,
@@ -429,10 +449,14 @@ final class FoodTruckViewModel {
         imageURL: String?,
         localImageData: Data? = nil,
         localImageContentType: String = "image/jpeg"
-    ) {
+    ) async throws -> UUID {
         let trimmedName = name.trimmed
         let trimmedDescription = description.trimmed
-        guard !trimmedName.isEmpty, !trimmedDescription.isEmpty, price > 0 else { return }
+        guard !trimmedName.isEmpty, !trimmedDescription.isEmpty, price > 0 else {
+            throw OwnerMenuItemSaveError.invalidInput
+        }
+
+        let normalizedCategory = MenuCategoryFormatting.normalized(category)
 
         // When uploading a photo, insert first; image URL is filled after storage upload.
         let initialImageURL: String? = (localImageData == nil) ? imageURL : nil
@@ -440,7 +464,7 @@ final class FoodTruckViewModel {
             name: trimmedName,
             description: trimmedDescription,
             price: price,
-            category: category,
+            category: normalizedCategory,
             isAvailable: true,
             truckId: truckID,
             imageURL: initialImageURL,
@@ -448,29 +472,41 @@ final class FoodTruckViewModel {
         )
         menuItems.insert(item, at: 0)
         let truckName = foodTrucks.first(where: { $0.id == truckID })?.name ?? ""
-        Task {
-            await backendService.submit(menuItem: item, truckName: truckName)
-            if let data = localImageData {
-                do {
-                    let publicURL = try await backendService.uploadMenuItemImage(
-                        truckID: truckID,
-                        itemID: item.id,
-                        imageData: data,
-                        contentType: localImageContentType
-                    )
-                    if let index = menuItems.firstIndex(where: { $0.id == item.id }) {
-                        menuItems[index].imageURL = publicURL
-                        item = menuItems[index]
-                        if backendService.isRemoteEnabled {
-                            await backendService.update(menuItem: item, truckName: truckName)
+
+        if backendService.isRemoteEnabled {
+            let submitted = await backendService.submit(menuItem: item, truckName: truckName)
+            guard submitted else {
+                menuItems.removeAll { $0.id == item.id }
+                throw OwnerMenuItemSaveError.remoteSaveFailed
+            }
+        }
+
+        if let data = localImageData {
+            do {
+                let publicURL = try await backendService.uploadMenuItemImage(
+                    truckID: truckID,
+                    itemID: item.id,
+                    imageData: data,
+                    contentType: localImageContentType
+                )
+                if let index = menuItems.firstIndex(where: { $0.id == item.id }) {
+                    menuItems[index].imageURL = publicURL
+                    item = menuItems[index]
+                    if backendService.isRemoteEnabled {
+                        let updated = await backendService.update(menuItem: item, truckName: truckName)
+                        if !updated {
+                            throw OwnerMenuItemSaveError.remoteSaveFailed
                         }
                     }
-                } catch {
-                    AppTelemetry.track(error: "menu_item_image_upload_failed")
                 }
+            } catch {
+                AppTelemetry.track(error: "menu_item_image_upload_failed")
+                if let saveError = error as? OwnerMenuItemSaveError { throw saveError }
             }
-            await refreshFromRemote()
         }
+
+        await refreshFromRemote()
+        return item.id
     }
 
     /// Same item again with a new id (faster than retyping a popular plate).
@@ -491,7 +527,7 @@ final class FoodTruckViewModel {
         menuItems.insert(copy, at: 0)
         let truckName = foodTrucks.first(where: { $0.id == item.truckId })?.name ?? ""
         Task {
-            await backendService.submit(menuItem: copy, truckName: truckName)
+            _ = await backendService.submit(menuItem: copy, truckName: truckName)
             await refreshFromRemote()
         }
     }
@@ -513,10 +549,95 @@ final class FoodTruckViewModel {
     }
 
     func updateMenuItemCategory(itemID: UUID, category: String) {
-        let trimmedCategory = category.trimmed
-        guard let index = menuItems.firstIndex(where: { $0.id == itemID }), !trimmedCategory.isEmpty else { return }
-        menuItems[index].category = trimmedCategory
+        let normalized = MenuCategoryFormatting.normalized(category)
+        guard let index = menuItems.firstIndex(where: { $0.id == itemID }) else { return }
+        menuItems[index].category = normalized
         persistMenuItemChange(itemID: itemID)
+    }
+
+    /// Replaces name, description, price, and category for an existing item (rebuilds the struct so `let` fields update).
+    func updateMenuItemBasics(itemID: UUID, name: String, description: String, price: Double, category: String) {
+        let n = name.trimmed
+        let d = description.trimmed
+        guard let index = menuItems.firstIndex(where: { $0.id == itemID }),
+              !n.isEmpty, !d.isEmpty, price >= 0
+        else { return }
+        let old = menuItems[index]
+        let normalized = MenuCategoryFormatting.normalized(category)
+        menuItems[index] = MenuItem(
+            id: old.id,
+            name: n,
+            description: d,
+            price: price,
+            category: normalized,
+            isAvailable: old.isAvailable,
+            truckId: old.truckId,
+            imageURL: old.imageURL,
+            modifierGroups: old.modifierGroups,
+            tags: old.tags
+        )
+        persistMenuItemChange(itemID: itemID)
+    }
+
+    func saveMenuItemFromOwnerForm(
+        itemID: UUID,
+        name: String,
+        description: String,
+        price: Double,
+        category: String,
+        imageURL: String?,
+        groups: [MenuModifierGroup],
+        localImageData: Data?,
+        localImageContentType: String = "image/jpeg"
+    ) async throws {
+        let n = name.trimmed
+        let d = description.trimmed
+        guard !n.isEmpty, !d.isEmpty, price > 0 else { throw OwnerMenuItemSaveError.invalidInput }
+        guard let index = menuItems.firstIndex(where: { $0.id == itemID }) else { throw OwnerMenuItemSaveError.itemNotFound }
+
+        let old = menuItems[index]
+        let normalizedCategory = MenuCategoryFormatting.normalized(category)
+        let normalizedImageURL = imageURL?.trimmed.isEmpty == false ? imageURL?.trimmed : nil
+        menuItems[index] = MenuItem(
+            id: old.id,
+            name: n,
+            description: d,
+            price: price,
+            category: normalizedCategory,
+            isAvailable: old.isAvailable,
+            truckId: old.truckId,
+            imageURL: normalizedImageURL ?? old.imageURL,
+            modifierGroups: groups,
+            tags: old.tags
+        )
+        var pending = menuItems[index]
+        let truckName = foodTrucks.first(where: { $0.id == old.truckId })?.name ?? ""
+
+        if let data = localImageData {
+            do {
+                let publicURL = try await backendService.uploadMenuItemImage(
+                    truckID: old.truckId,
+                    itemID: old.id,
+                    imageData: data,
+                    contentType: localImageContentType
+                )
+                if let i = menuItems.firstIndex(where: { $0.id == old.id }) {
+                    menuItems[i].imageURL = publicURL
+                    pending = menuItems[i]
+                }
+            } catch {
+                AppTelemetry.track(error: "menu_item_image_upload_failed")
+            }
+        }
+
+        if backendService.isRemoteEnabled {
+            let ok = await backendService.update(menuItem: pending, truckName: truckName)
+            guard ok else {
+                menuItems[index] = old
+                throw OwnerMenuItemSaveError.remoteSaveFailed
+            }
+        }
+        await refreshFromRemote()
     }
 
     func addModifierGroup(
@@ -1083,11 +1204,44 @@ final class FoodTruckViewModel {
         remoteSyncTask?.cancel()
         remoteSyncTask = Task { [weak self] in
             while !(Task.isCancelled) {
-                try? await Task.sleep(nanoseconds: 8_000_000_000)
+                // Catalog sync; order rows update via Realtime.
+                try? await Task.sleep(nanoseconds: 45_000_000_000)
                 guard let self else { return }
                 guard !(Task.isCancelled) else { return }
                 await self.refreshFromRemote()
             }
+        }
+    }
+
+    /// Starts a Supabase Realtime feed for `orders` when a session exists.
+    func startSupabaseOrdersRealtimeIfNeeded() {
+        guard isRemoteEnabled, SupabaseConfig.fromBundle() != nil else { return }
+        if supabaseOrdersRealtime != nil { return }
+        guard let config = SupabaseConfig.fromBundle() else { return }
+        let s = SupabaseOrdersRealtimeService(config: config) { [weak self] in
+            guard let self else { return }
+            Task { @MainActor in
+                self.scheduleOrderListResyncFromRealtime()
+            }
+        }
+        supabaseOrdersRealtime = s
+        s.start()
+    }
+
+    /// Call when the user signs out.
+    func stopSupabaseOrdersRealtime() {
+        supabaseOrdersRealtime?.stop()
+        supabaseOrdersRealtime = nil
+        ordersRealtimeResyncDebounce?.cancel()
+        ordersRealtimeResyncDebounce = nil
+    }
+
+    private func scheduleOrderListResyncFromRealtime() {
+        ordersRealtimeResyncDebounce?.cancel()
+        ordersRealtimeResyncDebounce = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            guard let self, !Task.isCancelled else { return }
+            await self.refreshFromRemote()
         }
     }
 
@@ -1154,7 +1308,7 @@ final class FoodTruckViewModel {
 
         let truckName = foodTrucks.first(where: { $0.id == item.truckId })?.name ?? ""
         Task {
-            await backendService.update(menuItem: item, truckName: truckName)
+            _ = await backendService.update(menuItem: item, truckName: truckName)
             await refreshFromRemote()
         }
     }
